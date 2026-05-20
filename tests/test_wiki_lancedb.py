@@ -68,15 +68,17 @@ def test_rollback_staging_clears_staging(tmp_workspace):
 def test_detect_renames(tmp_workspace):
     db = get_db(str(tmp_workspace / "memory" / "lancedb"))
     content = "# Pagina rinominata\nContenuto."
-    content_hash = hashlib.sha256(content.encode()).hexdigest()
+    page_hash = hashlib.sha256(content.encode()).hexdigest()
     old_path = "wiki/concepts/old-name.md"
-    chunks = [{"chunk_id": 0, "chunk_text": content, "content_hash": content_hash,
-                "page_hash": content_hash, "vector": FAKE_VECTOR}]
+    # page_hash == sha256(file intero); detect_renames confronta su page_hash
+    chunks = [{"chunk_id": 0, "chunk_text": content, "content_hash": "anychunkhash",
+                "page_hash": page_hash, "vector": FAKE_VECTOR}]
     upsert(db, old_path, chunks)
     new_file = tmp_workspace / "wiki" / "concepts" / "new-name.md"
     new_file.write_text(content, encoding="utf-8")
-    new_path = str(new_file)
-    renames = detect_renames(db, {new_path})
+    workspace = str(tmp_workspace)
+    renames = detect_renames(db, {str(new_file)}, workspace)
     assert len(renames) == 1
     assert renames[0]["old_path"] == old_path
-    assert renames[0]["new_path"] == new_path
+    # new_path è relativo al workspace, non assoluto
+    assert renames[0]["new_path"] == "wiki/concepts/new-name.md"

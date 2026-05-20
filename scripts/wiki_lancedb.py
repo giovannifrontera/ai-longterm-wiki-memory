@@ -77,7 +77,7 @@ def promote_staging(db) -> None:
             pass
     wiki.add(df.to_dict("records"))
     try:
-        staging.delete("1=1")
+        db.drop_table("staging_wiki_pages")
     except Exception:
         pass
 
@@ -87,9 +87,8 @@ def rollback_staging(db) -> None:
     existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
     if "staging_wiki_pages" not in existing:
         return
-    staging = db.open_table("staging_wiki_pages")
     try:
-        staging.delete("1=1")
+        db.drop_table("staging_wiki_pages")
     except Exception:
         pass
 
@@ -126,7 +125,7 @@ def detect_renames(db, filesystem_paths: set[str], workspace: str) -> list[dict]
     only_in_db = db_paths - rel_fs_paths
     only_in_fs = rel_fs_paths - db_paths
 
-    db_hash_to_path = {row["content_hash"]: row["path"]
+    db_hash_to_path = {row["page_hash"]: row["path"]
                        for _, row in df0[df0["path"].isin(only_in_db)].iterrows()}
 
     rel_to_abs = {v: k for k, v in abs_to_rel.items()}

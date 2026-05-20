@@ -3,12 +3,13 @@
 import json
 import os
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 from wiki import ok, error, acquire_lock, release_lock
-from wiki_embed import embed_file
-from wiki_lancedb import get_db, upsert, promote_staging, rollback_staging, ensure_table, detect_renames
+from wiki_embed import embed_file, _load_model
+from wiki_lancedb import get_db, upsert, promote_staging, rollback_staging, ensure_table, detect_renames, query_similar
 from wiki_index import rebuild_index, is_stale, EXCLUDED_NAMES
 
 
@@ -112,12 +113,10 @@ def cmd_ingest(args, cfg):
 
 
 def cmd_query(args, cfg):
-    from wiki_embed import _load_model
     db = get_db(_lancedb_path(args.workspace, cfg))
     model, _ = _load_model(cfg["lancedb"]["embedding_model"])
     vector = model.encode(args.q, normalize_embeddings=True).tolist()
 
-    from wiki_lancedb import query_similar
     results = query_similar(db, vector, k=args.k)
 
     ok({"op": "query", "results": [
@@ -158,7 +157,8 @@ def cmd_rebuild(args, cfg):
     db = get_db(_lancedb_path(args.workspace, cfg))
     thresholds = cfg["thresholds"]
 
-    if "wiki_pages" in db.table_names():
+    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    if "wiki_pages" in existing:
         db.drop_table("wiki_pages")
 
     count = 0
@@ -184,9 +184,7 @@ def cmd_lint(args, cfg):
 
     if args.full:
         import re
-        for md_file in Path(args.workspace).rglob("*.md"):
-            if "raw" in md_file.parts:
-                continue
+        for md_file in _wiki_md_files(args.workspace):
             try:
                 text = md_file.read_text(encoding="utf-8")
             except OSError:
@@ -241,7 +239,18 @@ Dettaglio: {json.dumps(detail, ensure_ascii=False)}
 ## Wiki principale
 Pagine totali: {_count_pages(workspace)}
 """
-    Path(workspace, "wiki-session.md").write_text(content, encoding="utf-8")
+    target = Path(workspace, "wiki-session.md")
+    fd, tmp_path = tempfile.mkstemp(dir=workspace, prefix=".wiki-session.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, target)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _count_pages(workspace: str) -> int:

@@ -47,8 +47,10 @@ def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
         return True
+    except PermissionError:
+        return True   # Processo esiste ma non abbiamo i permessi per segnalarlo
     except OSError:
-        return False
+        return False  # ProcessLookupError: PID non esiste
 
 
 def acquire_lock(lock_path: str) -> None:

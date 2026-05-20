@@ -38,6 +38,33 @@ def test_all_content_preserved():
     assert "Sezione C" in combined
 
 
+def test_overlap_between_adjacent_chunks():
+    """Verifica che chunk adiacenti condividano effettivamente del testo (overlap reale)."""
+    chunks = chunk_text(LONG_TEXT, chunk_size=512, overlap=64, threshold=1500)
+    if len(chunks) < 2:
+        return  # non applicabile
+    for i in range(len(chunks) - 1):
+        # Le prime parole del chunk successivo devono comparire anche nella coda del precedente
+        next_words = chunks[i + 1].split()[:5]
+        prev_tail = chunks[i][-300:]  # ultimi ~300 char del chunk precedente
+        assert any(w in prev_tail for w in next_words), (
+            f"Nessun overlap trovato tra chunk {i} e {i+1}"
+        )
+
+
+def test_page_hash_is_full_file_hash(tmp_path):
+    """page_hash deve essere sha256 del file reale, anche se il testo è troncato."""
+    import hashlib
+    from wiki_embed import _MAX_CHARS
+    # File più lungo del limite di troncamento
+    content = "parola " * (_MAX_CHARS // 7 + 100)
+    md = tmp_path / "big.md"
+    md.write_text(content, encoding="utf-8")
+    expected_hash = hashlib.sha256(content.encode()).hexdigest()
+    chunks = embed_file(str(md))
+    assert chunks[0]["page_hash"] == expected_hash
+
+
 import tempfile
 from wiki_embed import embed_file
 

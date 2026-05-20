@@ -90,7 +90,7 @@ def chunk_text(
                     else:
                         para_acc, para_tokens = _emit_chunk(chunks, para_acc, overlap, tokenizer)
                         para_acc += para + '\n\n'
-                        para_tokens += pt + count_tokens(para_acc[:len(para_acc) - len(para) - 2], model_name)
+                        para_tokens += pt
                 current = para_acc
                 current_tokens = para_tokens
 

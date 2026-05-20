@@ -71,7 +71,7 @@ def _collect_pages(wiki_dir: str) -> dict:
 
 
 def _build_full(categories: dict, now: str, total: int) -> str:
-    lines = [f"# Index — wiki", f"_Generato: {now} — {total} pagine_", ""]
+    lines = [f"# Index — {Path(wiki_dir).name}", f"_Generato: {now} — {total} pagine_", ""]
     for cat, pages in categories.items():
         if not pages:
             continue
@@ -86,7 +86,7 @@ def _build_full(categories: dict, now: str, total: int) -> str:
 
 
 def _build_slugs_only(categories: dict, now: str, total: int) -> str:
-    lines = [f"# Index — wiki", f"_Generato: {now} — {total} pagine_", ""]
+    lines = [f"# Index — {Path(wiki_dir).name}", f"_Generato: {now} — {total} pagine_", ""]
     for cat, pages in categories.items():
         if not pages:
             continue
@@ -112,7 +112,7 @@ def rebuild_index(wiki_dir: str, token_budget: int = 4000) -> str:
         return content
 
     # Strategia 3: solo conteggi + indici separati scritti su disco
-    lines = [f"# Index — wiki", f"_Generato: {now} — {total} pagine_", ""]
+    lines = [f"# Index — {Path(wiki_dir).name}", f"_Generato: {now} — {total} pagine_", ""]
     for cat, pages in categories.items():
         if pages:
             lines.append(f"## {cat.capitalize()} ({len(pages)} pagine)")
