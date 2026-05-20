@@ -8,7 +8,7 @@ from pathlib import Path
 
 from wiki import ok, error, acquire_lock, release_lock
 from wiki_embed import embed_file
-from wiki_lancedb import get_db, upsert, promote_staging, rollback_staging, ensure_table
+from wiki_lancedb import get_db, upsert, promote_staging, rollback_staging, ensure_table, detect_renames
 from wiki_index import rebuild_index, is_stale, EXCLUDED_NAMES
 
 
@@ -35,8 +35,11 @@ def _mini_lint(workspace: str, written_paths: list, db) -> str:
         rel = os.path.relpath(path, workspace).replace("\\", "/")
         if df[df["path"] == rel].empty:
             return f"not_embedded:{rel}"
-    for p in Path(workspace).rglob("*.tmp"):
-        return f"tmp_remaining:{p}"
+    for root_name in ("wiki", "wiki-works"):
+        root = Path(workspace) / root_name
+        if root.is_dir():
+            for p in root.rglob("*.tmp"):
+                return f"tmp_remaining:{p}"
     return "ok"
 
 
@@ -117,12 +120,6 @@ def cmd_query(args, cfg):
     from wiki_lancedb import query_similar
     results = query_similar(db, vector, k=args.k)
 
-    wiki_dir = os.path.join(args.workspace, "wiki")
-    index_path = os.path.join(wiki_dir, "index.md")
-    if is_stale(index_path, wiki_dir):
-        idx_content = rebuild_index(wiki_dir, cfg["thresholds"]["index_token_budget"])
-        Path(index_path).write_text(idx_content, encoding="utf-8")
-
     ok({"op": "query", "results": [
         {"path": r["path"], "chunk_id": r["chunk_id"],
          "score": float(r.get("_distance", 0)), "excerpt": r["chunk_text"][:200]}
@@ -187,7 +184,6 @@ def cmd_lint(args, cfg):
 
     if args.full:
         import re
-        from wiki_lancedb import detect_renames
         for md_file in Path(args.workspace).rglob("*.md"):
             if "raw" in md_file.parts:
                 continue
@@ -213,7 +209,7 @@ def cmd_lint(args, cfg):
 
         fs_paths = {str(p) for p in Path(args.workspace).rglob("*.md")
                     if "raw" not in p.parts}
-        renames = detect_renames(db, fs_paths)
+        renames = detect_renames(db, fs_paths, args.workspace)
         for r in renames:
             report.append({"type": "rename_detected", **r})
 

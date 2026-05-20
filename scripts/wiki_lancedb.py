@@ -1,9 +1,15 @@
 """Operazioni LanceDB per il wiki system."""
 
+import os
 import time
 import hashlib
 import pyarrow as pa
 import lancedb
+
+
+def _q(s: str) -> str:
+    """Escapa gli apici singoli per i filtri LanceDB (SQL injection prevention)."""
+    return s.replace("'", "''")
 
 SCHEMA = pa.schema([
     pa.field("path", pa.string()),
@@ -43,7 +49,7 @@ def upsert(db, path: str, chunks: list[dict], table_name: str = "wiki_pages") ->
     """Cancella tutti i chunk esistenti per path, poi inserisce i nuovi."""
     table = ensure_table(db, table_name)
     try:
-        table.delete(f"path = '{path}'")
+        table.delete(f"path = '{_q(path)}'")
     except Exception:
         pass
     rows = _chunks_to_rows(path, chunks)
@@ -60,10 +66,13 @@ def promote_staging(db) -> None:
     df = staging.to_pandas()
     if df.empty:
         return
+    # Seleziona solo le colonne dello schema canonico per evitare mismatch
+    schema_cols = [field.name for field in SCHEMA]
+    df = df[[c for c in schema_cols if c in df.columns]]
     wiki = ensure_table(db, "wiki_pages")
     for path in df["path"].unique():
         try:
-            wiki.delete(f"path = '{path}'")
+            wiki.delete(f"path = '{_q(path)}'")
         except Exception:
             pass
     wiki.add(df.to_dict("records"))
@@ -89,12 +98,16 @@ def query_similar(db, vector: list[float], k: int = 5, path_prefix: str = None) 
     table = ensure_table(db, "wiki_pages")
     q = table.search(vector).limit(k)
     if path_prefix:
-        q = q.where(f"path LIKE '{path_prefix}%'")
+        q = q.where(f"path LIKE '{_q(path_prefix)}%'")
     return q.to_list()
 
 
-def detect_renames(db, filesystem_paths: set[str]) -> list[dict]:
-    """Confronta LanceDB vs filesystem per rilevare file rinominati."""
+def detect_renames(db, filesystem_paths: set[str], workspace: str) -> list[dict]:
+    """Confronta LanceDB vs filesystem per rilevare file rinominati.
+
+    filesystem_paths: percorsi assoluti. Li converte in relativi per confrontarli
+    con i path del DB (sempre relativi a workspace).
+    """
     table = ensure_table(db, "wiki_pages")
     df = table.to_pandas()
     if df.empty:
@@ -103,20 +116,29 @@ def detect_renames(db, filesystem_paths: set[str]) -> list[dict]:
     df0 = df[df["chunk_id"] == 0]
     db_paths = set(df0["path"].tolist())
 
-    only_in_db = db_paths - filesystem_paths
-    only_in_fs = filesystem_paths - db_paths
+    # Normalizza i path assoluti del filesystem in relativi
+    abs_to_rel = {
+        p: os.path.relpath(p, workspace).replace("\\", "/")
+        for p in filesystem_paths
+    }
+    rel_fs_paths = set(abs_to_rel.values())
+
+    only_in_db = db_paths - rel_fs_paths
+    only_in_fs = rel_fs_paths - db_paths
 
     db_hash_to_path = {row["content_hash"]: row["path"]
                        for _, row in df0[df0["path"].isin(only_in_db)].iterrows()}
 
+    rel_to_abs = {v: k for k, v in abs_to_rel.items()}
     renames = []
-    for fs_path in only_in_fs:
+    for rel_path in only_in_fs:
+        abs_path = rel_to_abs.get(rel_path, rel_path)
         try:
-            with open(fs_path, encoding="utf-8") as f:
+            with open(abs_path, encoding="utf-8") as f:
                 content = f.read()
             h = hashlib.sha256(content.encode()).hexdigest()
             if h in db_hash_to_path:
-                renames.append({"old_path": db_hash_to_path[h], "new_path": fs_path})
+                renames.append({"old_path": db_hash_to_path[h], "new_path": rel_path})
         except OSError:
             pass
     return renames

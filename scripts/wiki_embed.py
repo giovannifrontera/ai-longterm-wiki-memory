@@ -27,6 +27,26 @@ def _split_on_headings(text: str) -> list[str]:
     return [p for p in parts if p.strip()]
 
 
+def _tail_text(text: str, n_tokens: int, tokenizer) -> str:
+    """Restituisce gli ultimi n_tokens del testo (per implementare l'overlap)."""
+    if n_tokens <= 0 or not text.strip():
+        return ""
+    ids = tokenizer.encode(text, add_special_tokens=False)
+    if len(ids) <= n_tokens:
+        return text
+    return tokenizer.decode(ids[-n_tokens:])
+
+
+def _emit_chunk(chunks: list, current: str, overlap: int, tokenizer) -> tuple[str, int]:
+    """Aggiunge current a chunks e restituisce il prefisso di overlap per il chunk successivo."""
+    stripped = current.strip()
+    if stripped:
+        chunks.append(stripped)
+    prefix = _tail_text(stripped, overlap, tokenizer) if overlap > 0 else ""
+    prefix_with_sep = prefix + "\n\n" if prefix else ""
+    return prefix_with_sep, len(tokenizer.encode(prefix_with_sep, add_special_tokens=False))
+
+
 def chunk_text(
     text: str,
     chunk_size: int = 512,
@@ -34,7 +54,9 @@ def chunk_text(
     threshold: int = 1500,
     model_name: str = "BAAI/bge-m3",
 ) -> list[str]:
-    """Ritorna lista di chunk. Se il testo è sotto soglia, ritorna [text]."""
+    """Ritorna lista di chunk con overlap reale. Se il testo è sotto soglia, ritorna [text]."""
+    _, tokenizer = _load_model(model_name)
+
     if count_tokens(text, model_name) <= threshold:
         return [text]
 
@@ -50,32 +72,29 @@ def chunk_text(
             current += section
             current_tokens += sec_tokens
         else:
-            if current.strip():
-                chunks.append(current.strip())
+            current, current_tokens = _emit_chunk(chunks, current, overlap, tokenizer)
 
             if sec_tokens <= chunk_size:
-                current = section
-                current_tokens = sec_tokens
+                current += section
+                current_tokens += sec_tokens
             else:
                 # Sezione più grande del chunk_size: splitta per paragrafi
                 paragraphs = section.split('\n\n')
-                para_acc: str = ""
-                para_tokens: int = 0
+                para_acc: str = current
+                para_tokens: int = current_tokens
                 for para in paragraphs:
                     pt = count_tokens(para, model_name)
                     if para_tokens + pt <= chunk_size:
                         para_acc += para + '\n\n'
                         para_tokens += pt
                     else:
-                        if para_acc.strip():
-                            chunks.append(para_acc.strip())
-                        para_acc = para + '\n\n'
-                        para_tokens = pt
+                        para_acc, para_tokens = _emit_chunk(chunks, para_acc, overlap, tokenizer)
+                        para_acc += para + '\n\n'
+                        para_tokens += pt + count_tokens(para_acc[:len(para_acc) - len(para) - 2], model_name)
                 current = para_acc
                 current_tokens = para_tokens
 
-    if current.strip():
-        chunks.append(current.strip())
+    _emit_chunk(chunks, current, 0, tokenizer)  # ultimo chunk: no overlap in coda
 
     return chunks if chunks else [text]
 
@@ -94,10 +113,10 @@ def embed_file(
     with open(path, encoding="utf-8") as f:
         text = f.read()
 
+    page_hash = hashlib.sha256(text.encode()).hexdigest()  # hash del file reale, prima del troncamento
+
     if len(text) > _MAX_CHARS:
         text = text[:_MAX_CHARS] + "\n\n[... file troncato per limite embedding]"
-
-    page_hash = hashlib.sha256(text.encode()).hexdigest()
     chunks = chunk_text(text, chunk_size, overlap, threshold, model_name)
     model, _ = _load_model(model_name)
 

@@ -43,17 +43,32 @@ def load_config(config_path: str) -> dict:
     return cfg
 
 
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def acquire_lock(lock_path: str) -> None:
     if os.path.exists(lock_path):
-        raise RuntimeError(
-            json.dumps({
-                "status": "error",
-                "code": "lock_exists",
-                "message": "Operazione precedente non conclusa. Rimuovi .wiki-lock se sei sicuro che nessun processo è in esecuzione.",
-                "recoverable": True,
-            })
-        )
-    Path(lock_path).write_text("locked")
+        try:
+            pid = int(Path(lock_path).read_text().strip())
+            if _pid_alive(pid):
+                raise RuntimeError(
+                    json.dumps({
+                        "status": "error",
+                        "code": "lock_exists",
+                        "message": f"Operazione in corso (PID {pid}). Rimuovi .wiki-lock solo se quel processo non esiste più.",
+                        "recoverable": True,
+                    })
+                )
+        except (ValueError, OSError):
+            pass
+        # Lock stale (processo morto) → rimuovi silenziosamente
+        os.remove(lock_path)
+    Path(lock_path).write_text(str(os.getpid()))
 
 
 def release_lock(lock_path: str) -> None:
