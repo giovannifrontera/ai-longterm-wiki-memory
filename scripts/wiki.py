@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Virginia Wiki System — entry point CLI."""
+"""AI Wiki System — entry point CLI."""
 
 import json
 import os

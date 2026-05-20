@@ -1,9 +1,9 @@
 ---
 name: wiki-core
-description: Protocollo wiki Virginia Nyx — classificazione intent, workflow INGEST/QUERY/LINT, checklist obbligatoria
+description: Protocollo wiki AI Agent — classificazione intent, workflow INGEST/QUERY/LINT, checklist obbligatoria
 ---
 
-# Wiki Core — Protocollo Virginia Nyx
+# Wiki Core — Protocollo AI Agent
 
 Questo documento definisce come gestisci il knowledge wiki. Seguilo **sempre** prima di rispondere a qualsiasi messaggio che potrebbe riguardare il wiki.
 

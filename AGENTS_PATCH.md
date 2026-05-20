@@ -1,4 +1,4 @@
-# Patch per AGENTS.md di Virginia
+# Patch per AGENTS.md di Agent
 
 Aggiungere queste righe in fondo alla sezione delle istruzioni operative:
 
