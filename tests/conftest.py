@@ -31,5 +31,5 @@ def tmp_workspace(tmp_path):
             "embedding_model": "BAAI/bge-m3"
         }
     }
-    (tmp_path / "wiki.config.json").write_text(json.dumps(config))
+    (tmp_path / "wiki.config.json").write_text(json.dumps(config, indent=2))
     return tmp_path
