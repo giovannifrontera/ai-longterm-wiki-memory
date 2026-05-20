@@ -209,12 +209,17 @@ def cmd_session_update(args, cfg):
     ok({"op": "session-update", "status": args.status})
 
 
-def _write_session(workspace: str, op: str, status: str, detail: dict) -> None:
+def _write_session(workspace: str, op: str, status: str, detail: dict,
+                   project: str = "", project_path: str = "") -> None:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     content = f"""# Wiki Session — {now}
 
 ## Status
 status: {status}
+
+## Workspace attivo
+Progetto: {project or "wiki principale"}
+Path: {project_path or "wiki/"}
 
 ## Ultima operazione
 Tipo: {op}
