@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Virginia Wiki System — entry point CLI."""
+
+import json
+import os
+import sys
+import argparse
+from pathlib import Path
+
+REQUIRED_CONFIG_FIELDS = [
+    ("workspace",),
+    ("projects",),
+    ("thresholds", "index_token_budget"),
+    ("thresholds", "staleness_days"),
+    ("thresholds", "similarity_merge"),
+    ("thresholds", "similarity_orphan"),
+    ("thresholds", "synthesis_min_tokens"),
+    ("thresholds", "synthesis_min_sources"),
+    ("thresholds", "chunk_size_tokens"),
+    ("thresholds", "chunk_overlap_tokens"),
+    ("thresholds", "page_chunk_threshold_tokens"),
+    ("thresholds", "quality_filter_min_score"),
+    ("lancedb", "path"),
+    ("lancedb", "embedding_model"),
+]
+
+
+class ConfigError(Exception):
+    pass
+
+
+def load_config(config_path: str) -> dict:
+    if not os.path.exists(config_path):
+        raise ConfigError(f"Config non trovato: {config_path}")
+    with open(config_path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    for field_path in REQUIRED_CONFIG_FIELDS:
+        node = cfg
+        for key in field_path:
+            if not isinstance(node, dict) or key not in node:
+                raise ConfigError(f"Campo obbligatorio mancante: {'.'.join(field_path)}")
+            node = node[key]
+    return cfg
+
+
+def acquire_lock(lock_path: str) -> None:
+    if os.path.exists(lock_path):
+        raise RuntimeError(
+            json.dumps({
+                "status": "error",
+                "code": "lock_exists",
+                "message": "Operazione precedente non conclusa. Rimuovi .wiki-lock se sei sicuro che nessun processo è in esecuzione.",
+                "recoverable": True,
+            })
+        )
+    Path(lock_path).write_text("locked")
+
+
+def release_lock(lock_path: str) -> None:
+    if os.path.exists(lock_path):
+        os.remove(lock_path)
+
+
+def ok(data: dict) -> None:
+    print(json.dumps({"status": "ok", **data}))
+
+
+def error(code: str, message: str, recoverable: bool = True, **extra) -> None:
+    print(json.dumps({"status": "error", "code": code, "message": message,
+                      "recoverable": recoverable, **extra}))
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="wiki.py")
+    sub = parser.add_subparsers(dest="command")
+
+    p_ingest = sub.add_parser("ingest")
+    p_ingest.add_argument("--workspace", required=True)
+    p_ingest.add_argument("--pages", required=True)
+    p_ingest.add_argument("--log", required=True)
+
+    p_query = sub.add_parser("query")
+    p_query.add_argument("--workspace", required=True)
+    p_query.add_argument("--q", required=True)
+    p_query.add_argument("--k", type=int, default=5)
+
+    p_lint = sub.add_parser("lint")
+    p_lint.add_argument("--workspace", required=True)
+    p_lint.add_argument("--full", action="store_true")
+
+    p_index = sub.add_parser("index")
+    p_index.add_argument("--workspace", required=True)
+
+    p_rebuild = sub.add_parser("rebuild")
+    p_rebuild.add_argument("--workspace", required=True)
+
+    p_session = sub.add_parser("session-update")
+    p_session.add_argument("--workspace", required=True)
+    p_session.add_argument("--op", required=True)
+    p_session.add_argument("--status", required=True, choices=["ok", "failed", "in-progress", "needs-repair"])
+    p_session.add_argument("--detail", default="{}")
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    config_path = os.path.join(args.workspace, "wiki.config.json")
+    try:
+        cfg = load_config(config_path)
+    except ConfigError as e:
+        error("invalid_config", str(e), recoverable=False)
+        sys.exit(1)
+
+    dispatch(args, cfg)
+
+
+def dispatch(args, cfg):
+    from wiki_workflows import cmd_ingest, cmd_query, cmd_lint, cmd_index, cmd_rebuild, cmd_session_update
+    commands = {
+        "ingest": cmd_ingest,
+        "query": cmd_query,
+        "lint": cmd_lint,
+        "index": cmd_index,
+        "rebuild": cmd_rebuild,
+        "session-update": cmd_session_update,
+    }
+    commands[args.command](args, cfg)
+
+
+if __name__ == "__main__":
+    main()
