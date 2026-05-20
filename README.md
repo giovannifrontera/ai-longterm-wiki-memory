@@ -1,159 +1,213 @@
+<div align="center">
+
 # AI Wiki System
 
-Un sistema di memoria wiki semantica per agenti AI — progettato per funzionare con [OpenClaw](https://github.com/openclaw/openclaw) e qualsiasi agente capace di leggere file e chiamare comandi bash.
+**Semantic long-term memory for AI agents**
+
+Give your AI agent a wiki it actually maintains — not a flat note dump, but a structured, searchable, self-healing knowledge base.
+
+[![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen)](tests/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
+
+[Getting Started](#getting-started) · [OpenClaw Integration](#openclaw-integration) · [How It Works](#how-it-works) · [Documentation](#documentation)
 
 ---
 
-## Cos'è
+</div>
 
-AI Wiki System trasforma un agente AI da assistente con memoria volatile a **ricercatore con memoria permanente e strutturata**.
+## The problem
 
-L'agente può:
-- **Ingestionare** contenuti (URL, PDF, note) in pagine wiki ben organizzate
-- **Interrogare** la wiki con ricerca semantica vettoriale (embedding bge-m3, 1024 dim)
-- **Fare manutenzione** automatica — link rotti, entry orfane, rename di file
-- **Sintetizzare** nuove conoscenze incrociando più fonti wiki
+AI agents forget everything between sessions. Personal memory systems exist, but they're flat and unstructured — a pile of facts, not a knowledge base.
 
-Tutto questo accade in modo **atomico e sicuro**: ogni operazione scrive file `.tmp`, li promuove via script Python, e in caso di crash il sistema rileva lo stato anomalo alla sessione successiva.
+When you work on recurring research (trading signals, academic literature, competitive analysis, legal cases), you need something more: **organized, interconnected, semantically searchable knowledge** that persists and grows over time.
+
+## What AI Wiki System does
+
+AI Wiki System gives your agent a two-level wiki it can maintain autonomously:
+
+- **`wiki/`** — permanent, curated knowledge (entities, concepts, synthesis pages)
+- **`wiki-works/<project>/`** — active research per domain (raw sources + structured pages)
+
+The agent ingests content, queries it with vector search, detects stale or broken knowledge, and synthesizes new pages when multiple sources support a non-obvious inference — all without corrupting the knowledge base even if a process crashes mid-operation.
+
+```
+User: "study this paper on RAG architectures"
+
+Agent: [INTENT: INGEST | WORKSPACE: research | CONFIDENCE: high]
+       → fetches content, writes structured pages as .tmp files
+       → calls wiki.py ingest (atomic commit: staging → production)
+       → "2 pages written. 1 conflict resolved. Mini-lint: ok."
+
+User: "what do you know about retrieval-augmented generation?"
+
+Agent: [INTENT: QUERY | WORKSPACE: research | CONFIDENCE: high]
+       → semantic vector search across wiki chunks
+       → reads relevant pages, synthesizes with citations
+       → if synthesis meets threshold → auto-saves as new wiki page
+```
 
 ---
 
-## Architettura
+## Key features
+
+### Semantic vector search
+Uses [bge-m3](https://huggingface.co/BAAI/bge-m3) embeddings (multilingual, 1024-dim, HNSW index). A query about *"how LLMs handle long context"* finds pages about *"positional encoding"* and *"sliding window attention"* — even without keyword overlap.
+
+### Atomic writes — crash-safe
+Every ingest follows a `.tmp → staging LanceDB → atomic promotion` pattern. A crash mid-operation leaves the system in a detectable state (`status: in-progress` in `wiki-session.md`). The agent recovers gracefully at the next session without silent data corruption.
+
+### Multi-project routing
+Define multiple research domains in `wiki.config.json` with keyword lists. The agent auto-selects the right workspace from message content — no need to specify it manually.
+
+### Automatic synthesis
+When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds non-literal inference, the agent saves it as a new wiki page. Knowledge compounds over time.
+
+### Self-healing lint
+`wiki.py lint --full` detects and repairs:
+- **Broken wiki links** (`[[page]]` with no matching file)
+- **Orphan LanceDB entries** (vectors for deleted files — auto-removed)
+- **Renames** (file moved → updates DB path without re-embedding, using `content_hash` comparison)
+
+### Token-budget index
+`index.md` respects a configurable token budget (default 4000). When exceeded, it applies reduction strategies automatically — so the agent can navigate the wiki even on small context windows.
+
+---
+
+## Architecture
 
 ```
 workspace/
 ├── skills/
-│   └── wiki-core.md          ← skill permanente che guida l'agente
-├── wiki-session.md           ← stato sessione corrente (generato da wiki.py)
-├── wiki.config.json          ← configurazione
+│   └── wiki-core.md          ← permanent skill: intent classification, workflows
+├── wiki-session.md           ← live session state (generated by wiki.py)
+├── wiki.config.json          ← configuration
 ├── scripts/
-│   ├── wiki.py               ← entry point CLI
-│   ├── wiki_embed.py         ← chunking + embedding bge-m3
-│   ├── wiki_lancedb.py       ← operazioni LanceDB (upsert, staging, rename)
-│   └── wiki_index.py         ← generazione index.md con budget token
-├── wiki/                     ← conoscenza permanente
-│   ├── entities/
-│   ├── concepts/
-│   └── synthesis/
-├── wiki-works/               ← ricerche attive per progetto
-│   └── <progetto>/
-│       ├── raw/              ← fonti grezze, non indicizzate
+│   ├── wiki.py               ← unified CLI entry point
+│   ├── wiki_embed.py         ← boundary-aware chunking + bge-m3 embeddings
+│   ├── wiki_lancedb.py       ← LanceDB ops (upsert, staging, rename detection)
+│   └── wiki_index.py         ← token-budget index generation
+├── wiki/                     ← permanent knowledge base
+│   ├── entities/             ← people, tools, organizations
+│   ├── concepts/             ← theories, strategies, definitions
+│   └── synthesis/            ← cross-source inferences
+├── wiki-works/               ← active research (per project)
+│   └── <project>/
+│       ├── raw/              ← raw fetched sources (not indexed)
 │       ├── entities/
 │       ├── concepts/
 │       └── synthesis/
 └── memory/
-    └── lancedb/              ← database vettoriale (escluso da git)
+    └── lancedb/              ← vector database (git-ignored, rebuildable)
 ```
 
-**Invariante fondamentale:** l'agente non scrive mai direttamente nel wiki. Tutto passa per `wiki.py`. La skill `wiki-core.md` guida il *quando* e il *perché*; gli script gestiscono il *come*.
+**Core invariant:** The agent never writes directly to the wiki. Everything goes through `wiki.py`. The skill guides *when* and *why*; the scripts handle *how*.
 
 ---
 
-## Integrazione con OpenClaw
+## OpenClaw Integration
 
-[OpenClaw](https://github.com/openclaw/openclaw) è un gateway AI self-hosted che collega canali di messaggistica (Telegram, Discord, web) a agenti AI con accesso a strumenti: `bash`, `read`, `write`, `edit`, `browser`.
+[OpenClaw](https://github.com/openclaw/openclaw) is a self-hosted AI agent gateway that connects messaging channels (Telegram, Discord, web) to AI agents with tool access: `bash`, `read`, `write`, `edit`, `browser` on the host filesystem.
 
-Con AI Wiki System, un agente OpenClaw diventa un **ricercatore con memoria a lungo termine**:
+AI Wiki System is designed as a first-class OpenClaw extension:
 
-### Come funziona in una sessione tipica
+### Setup (5 minutes)
 
-**L'utente scrive:** *"studia questo articolo su transformer models — link"*
+**1. Copy the skill to your workspace**
+```
+<workspace>/skills/wiki-core.md
+```
 
-**L'agente:**
-1. Legge `wiki-session.md` → status ok, nessun problema pendente
-2. Classifica: `[INTENT: INGEST | WORKSPACE: ricerca | CERTEZZA: alta]`
-3. Esegue `web_fetch` sull'URL, salva in `wiki-works/ricerca/raw/`
-4. Scrive le nuove pagine come file `.tmp`:
-   - `concepts/transformer-architecture.md.tmp`
-   - `entities/attention-mechanism.md.tmp`
-5. Chiama `wiki.py ingest` per il commit atomico
-6. Riferisce: "Salvate 2 pagine. Nessun conflitto con la wiki esistente."
+**2. Add to your `AGENTS.md`**
+```
+At the start of every session, read <workspace>/wiki-session.md for current wiki state.
+Before any wiki operation, re-read skills/wiki-core.md to verify the protocol.
+```
 
-**L'utente chiede:** *"cosa sai dei transformer?"*
+The second line forces the agent to reload the rules before acting — not just at session start — mitigating instruction drift on long context windows.
 
-**L'agente:**
-1. Classifica: `[INTENT: QUERY | WORKSPACE: ricerca | CERTEZZA: alta]`
-2. Chiama `wiki.py query --q "transformer models"` → top-5 chunk semanticamente simili
-3. Legge le pagine pertinenti
-4. Sintetizza la risposta con riferimenti alle pagine wiki
+**3. Configure your projects**
+```json
+{
+  "workspace": "/path/to/your/workspace",
+  "projects": {
+    "trading": {
+      "path": "wiki-works/trading",
+      "keywords": ["markets", "indicators", "trading", "stocks", "ticker"]
+    },
+    "research": {
+      "path": "wiki-works/research",
+      "keywords": ["paper", "study", "systematic review", "article"]
+    }
+  }
+}
+```
 
-### Configurazione in OpenClaw
+**4. Initialize**
+```bash
+py scripts/wiki.py rebuild --workspace /path/to/your/workspace
+```
 
-1. Copia `skills/wiki-core.md` nella directory `skills/` del tuo workspace OpenClaw
-2. Aggiungi in `AGENTS.md`:
-   ```
-   All'inizio di ogni sessione leggi <workspace>/wiki-session.md per il contesto wiki corrente.
-   Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md per verificare il protocollo.
-   ```
-3. Configura `wiki.config.json` con i tuoi progetti
-4. Inizializza: `py scripts/wiki.py rebuild --workspace <path>`
+### What the agent does automatically
 
----
+| User says | Agent does |
+|-----------|-----------|
+| URL / "study this" / file | INGEST: fetch → structure → atomic write → lint |
+| Direct question / "explain" | QUERY: vector search → read pages → synthesize |
+| "check the wiki" / "maintenance" | LINT: broken links, orphans, renames |
+| Ambiguous | Asks one clarifying question, never guesses |
 
-## Potenzialità
+The agent always emits a classification line before acting:
+```
+[INTENT: INGEST | WORKSPACE: trading | CONFIDENCE: high]
+```
+You can correct it before execution.
 
-### Memoria semantica, non solo full-text
+### Session state
 
-La ricerca usa embedding [bge-m3](https://huggingface.co/BAAI/bge-m3) (multilingua, 1024 dimensioni). Una query su *"come funziona l'attenzione nei LLM"* trova pagine che parlano di *"self-attention mechanism"* anche se non contengono quelle parole esatte.
+`wiki-session.md` (managed exclusively by `wiki.py`) tracks:
+- Current status: `ok` / `in-progress` / `needs-repair`
+- Last operation: type, timestamp, detail
+- Active workspace and page count
 
-### Multi-progetto con selezione automatica
-
-Puoi avere progetti separati (trading, ricerca, diritto, medicina) con keyword distinte. L'agente seleziona automaticamente il workspace corretto in base al contenuto del messaggio — senza che tu debba specificarlo ogni volta.
-
-### Sintesi automatica
-
-Se una risposta a una query integra ≥2 fonti wiki, supera 300 token, e aggiunge inferenze non letterali, l'agente la salva automaticamente come nuova pagina wiki. La conoscenza si accumula e si interconnette nel tempo.
-
-### Atomicità e resistenza ai crash
-
-Ogni ingest usa un pattern `.tmp` → staging LanceDB → promozione atomica. Se il processo crasha a metà:
-- Il lock file `.wiki-lock` segnala lo stato
-- `wiki-session.md` rimane su `status: in-progress`
-- L'agente lo rileva alla sessione successiva e avvisa prima di fare qualsiasi cosa
-
-### Manutenzione automatica (`lint --full`)
-
-- Rileva **link wiki rotti** (`[[pagina]]` che non esiste)
-- Rimuove **entry orfane** da LanceDB (file eliminato ma vettore rimasto)
-- Detecta **rename**: se un file è stato rinominato, aggiorna il percorso nel DB senza re-embedding (confronto `content_hash`)
-
-### Budget token per l'index
-
-`index.md` rispetta un budget configurabile (default 4000 token). Se superato, applica automaticamente strategie di riduzione: prima rimuove le descrizioni, poi crea index separati per categoria. L'agente può sempre navigare la wiki anche su context window limitate.
+If the agent finds `in-progress` at session start, it warns before doing anything — no silent state corruption.
 
 ---
 
-## Installazione
+## Getting Started
 
-### Requisiti
+### Requirements
 
 - Python 3.10+
-- `pip install -r requirements.txt`
+- ~2 GB disk for bge-m3 model (downloaded on first use)
 
-### Setup
+### Install
 
 ```bash
-# Clona il repo
 git clone https://github.com/giovannifrontera/ai-wiki-system
 cd ai-wiki-system
-
-# Installa dipendenze
 pip install -r requirements.txt
+```
 
-# Copia e configura
+### Configure
+
+```bash
 cp wiki.config.json my-workspace/wiki.config.json
-# Modifica workspace, projects, thresholds
+# Edit: set workspace path, add your projects and keywords
+```
 
-# Inizializza il database vettoriale
+### Initialize
+
+```bash
 py scripts/wiki.py rebuild --workspace my-workspace/
 ```
 
-### Test
+### Run tests
 
 ```bash
-cd ai-wiki-system
 pytest tests/ -v
-# Atteso: 37 test passati
+# Expected: 37 passed
 ```
 
 ---
@@ -161,68 +215,68 @@ pytest tests/ -v
 ## CLI Reference
 
 ```
-wiki.py <comando> [argomenti]
+wiki.py <command> [arguments]
 
   ingest         --workspace <path> --pages <p1.tmp,p2.tmp,...> --log <str>
-  query          --workspace <path> --q <stringa> [--k 5]
+  query          --workspace <path> --q <string> [--k 5]
   lint           --workspace <path> [--full]
   index          --workspace <path>
   rebuild        --workspace <path>
-  session-update --workspace <path> --op <tipo> --status <ok|failed|in-progress> [--detail <json>]
+  session-update --workspace <path> --op <type> --status <ok|failed|in-progress> [--detail <json>]
 ```
 
-Ogni comando produce JSON su stdout:
+Every command outputs JSON to stdout:
 
 ```json
 { "status": "ok", "op": "ingest", "pages_written": 2, "conflicts": [], "mini_lint": "ok" }
-{ "status": "error", "code": "lock_exists", "message": "...", "recoverable": true }
+{ "status": "error", "code": "lock_exists", "message": "Previous operation did not complete", "recoverable": true }
+{ "status": "conflict", "level": 3, "page": "concepts/rag.md", "detail": "..." }
 ```
 
----
-
-## Configurazione
-
-```json
-{
-  "workspace": "/path/to/workspace",
-  "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni"]
-    },
-    "ricerca": {
-      "path": "wiki-works/ricerca",
-      "keywords": ["paper", "studio", "PRISMA", "articolo", "ricerca"]
-    }
-  },
-  "thresholds": {
-    "index_token_budget": 4000,
-    "staleness_days": 90,
-    "similarity_merge": 0.95,
-    "synthesis_min_tokens": 300,
-    "synthesis_min_sources": 2,
-    "chunk_size_tokens": 512,
-    "chunk_overlap_tokens": 64,
-    "page_chunk_threshold_tokens": 1500,
-    "quality_filter_min_score": 6
-  },
-  "lancedb": {
-    "path": "memory/lancedb",
-    "embedding_model": "BAAI/bge-m3"
-  }
-}
-```
+Conflict level 3 (semantic contradiction between sources) blocks page promotion and asks for human resolution.
 
 ---
 
-## Documentazione
+## How It Works
 
-- [`DESIGN.md`](DESIGN.md) — architettura dettagliata, workflow, schema LanceDB
-- [`SPEC.md`](SPEC.md) — specifiche implementative, stati di errore, integrazione OpenClaw
-- [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
+### Chunking
+
+Pages are split using the bge-m3 native tokenizer (not character approximation). Boundaries respect `##` and `###` headings — chunks never cut mid-section. Pages under 1500 tokens are embedded whole; larger pages are chunked at 512 tokens with 64-token overlap.
+
+### Upsert semantics
+
+`upsert(path, chunks)` deletes **all** existing chunks for that path before inserting new ones. This prevents orphan chunks when a page changes its chunk count.
+
+### Rename detection
+
+During lint, the system compares `content_hash` between DB-only paths and filesystem-only paths. Matching hashes = rename detected → path updated in DB without re-embedding.
+
+### Staging table
+
+Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` moves them to `wiki_pages`. A crash leaves staging populated; the next session detects and clears it silently, then logs the event.
 
 ---
 
-## Licenza
+## Documentation
 
-MIT
+| File | Contents |
+|------|----------|
+| [`DESIGN.md`](DESIGN.md) | Full architecture, workflow specs, LanceDB schema, conflict resolution |
+| [`SPEC.md`](SPEC.md) | Implementation spec, error states table, OpenClaw integration detail |
+| [`skills/wiki-core.md`](skills/wiki-core.md) | The skill file to install in your agent |
+| [`AGENTS_PATCH.md`](AGENTS_PATCH.md) | Exact text to add to your `AGENTS.md` |
+| [`README.it.md`](README.it.md) | Documentazione in italiano |
+
+---
+
+## License
+
+MIT — free to use, modify, and integrate in your own AI agent setups.
+
+---
+
+<div align="center">
+
+Built to work with [OpenClaw](https://github.com/openclaw/openclaw) · Embeddings by [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store by [LanceDB](https://lancedb.github.io/lancedb/)
+
+</div>

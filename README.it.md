@@ -1,0 +1,228 @@
+# AI Wiki System
+
+Un sistema di memoria wiki semantica per agenti AI — progettato per funzionare con [OpenClaw](https://github.com/openclaw/openclaw) e qualsiasi agente capace di leggere file e chiamare comandi bash.
+
+---
+
+## Cos'è
+
+AI Wiki System trasforma un agente AI da assistente con memoria volatile a **ricercatore con memoria permanente e strutturata**.
+
+L'agente può:
+- **Ingestionare** contenuti (URL, PDF, note) in pagine wiki ben organizzate
+- **Interrogare** la wiki con ricerca semantica vettoriale (embedding bge-m3, 1024 dim)
+- **Fare manutenzione** automatica — link rotti, entry orfane, rename di file
+- **Sintetizzare** nuove conoscenze incrociando più fonti wiki
+
+Tutto questo accade in modo **atomico e sicuro**: ogni operazione scrive file `.tmp`, li promuove via script Python, e in caso di crash il sistema rileva lo stato anomalo alla sessione successiva.
+
+---
+
+## Architettura
+
+```
+workspace/
+├── skills/
+│   └── wiki-core.md          ← skill permanente che guida l'agente
+├── wiki-session.md           ← stato sessione corrente (generato da wiki.py)
+├── wiki.config.json          ← configurazione
+├── scripts/
+│   ├── wiki.py               ← entry point CLI
+│   ├── wiki_embed.py         ← chunking + embedding bge-m3
+│   ├── wiki_lancedb.py       ← operazioni LanceDB (upsert, staging, rename)
+│   └── wiki_index.py         ← generazione index.md con budget token
+├── wiki/                     ← conoscenza permanente
+│   ├── entities/
+│   ├── concepts/
+│   └── synthesis/
+├── wiki-works/               ← ricerche attive per progetto
+│   └── <progetto>/
+│       ├── raw/              ← fonti grezze, non indicizzate
+│       ├── entities/
+│       ├── concepts/
+│       └── synthesis/
+└── memory/
+    └── lancedb/              ← database vettoriale (escluso da git)
+```
+
+**Invariante fondamentale:** l'agente non scrive mai direttamente nel wiki. Tutto passa per `wiki.py`. La skill `wiki-core.md` guida il *quando* e il *perché*; gli script gestiscono il *come*.
+
+---
+
+## Integrazione con OpenClaw
+
+[OpenClaw](https://github.com/openclaw/openclaw) è un gateway AI self-hosted che collega canali di messaggistica (Telegram, Discord, web) a agenti AI con accesso a strumenti: `bash`, `read`, `write`, `edit`, `browser`.
+
+Con AI Wiki System, un agente OpenClaw diventa un **ricercatore con memoria a lungo termine**:
+
+### Come funziona in una sessione tipica
+
+**L'utente scrive:** *"studia questo articolo su transformer models — link"*
+
+**L'agente:**
+1. Legge `wiki-session.md` → status ok, nessun problema pendente
+2. Classifica: `[INTENT: INGEST | WORKSPACE: ricerca | CERTEZZA: alta]`
+3. Esegue `web_fetch` sull'URL, salva in `wiki-works/ricerca/raw/`
+4. Scrive le nuove pagine come file `.tmp`:
+   - `concepts/transformer-architecture.md.tmp`
+   - `entities/attention-mechanism.md.tmp`
+5. Chiama `wiki.py ingest` per il commit atomico
+6. Riferisce: "Salvate 2 pagine. Nessun conflitto con la wiki esistente."
+
+**L'utente chiede:** *"cosa sai dei transformer?"*
+
+**L'agente:**
+1. Classifica: `[INTENT: QUERY | WORKSPACE: ricerca | CERTEZZA: alta]`
+2. Chiama `wiki.py query --q "transformer models"` → top-5 chunk semanticamente simili
+3. Legge le pagine pertinenti
+4. Sintetizza la risposta con riferimenti alle pagine wiki
+
+### Configurazione in OpenClaw
+
+1. Copia `skills/wiki-core.md` nella directory `skills/` del tuo workspace OpenClaw
+2. Aggiungi in `AGENTS.md`:
+   ```
+   All'inizio di ogni sessione leggi <workspace>/wiki-session.md per il contesto wiki corrente.
+   Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md per verificare il protocollo.
+   ```
+3. Configura `wiki.config.json` con i tuoi progetti
+4. Inizializza: `py scripts/wiki.py rebuild --workspace <path>`
+
+---
+
+## Potenzialità
+
+### Memoria semantica, non solo full-text
+
+La ricerca usa embedding [bge-m3](https://huggingface.co/BAAI/bge-m3) (multilingua, 1024 dimensioni). Una query su *"come funziona l'attenzione nei LLM"* trova pagine che parlano di *"self-attention mechanism"* anche se non contengono quelle parole esatte.
+
+### Multi-progetto con selezione automatica
+
+Puoi avere progetti separati (trading, ricerca, diritto, medicina) con keyword distinte. L'agente seleziona automaticamente il workspace corretto in base al contenuto del messaggio — senza che tu debba specificarlo ogni volta.
+
+### Sintesi automatica
+
+Se una risposta a una query integra ≥2 fonti wiki, supera 300 token, e aggiunge inferenze non letterali, l'agente la salva automaticamente come nuova pagina wiki. La conoscenza si accumula e si interconnette nel tempo.
+
+### Atomicità e resistenza ai crash
+
+Ogni ingest usa un pattern `.tmp` → staging LanceDB → promozione atomica. Se il processo crasha a metà:
+- Il lock file `.wiki-lock` segnala lo stato
+- `wiki-session.md` rimane su `status: in-progress`
+- L'agente lo rileva alla sessione successiva e avvisa prima di fare qualsiasi cosa
+
+### Manutenzione automatica (`lint --full`)
+
+- Rileva **link wiki rotti** (`[[pagina]]` che non esiste)
+- Rimuove **entry orfane** da LanceDB (file eliminato ma vettore rimasto)
+- Detecta **rename**: se un file è stato rinominato, aggiorna il percorso nel DB senza re-embedding (confronto `content_hash`)
+
+### Budget token per l'index
+
+`index.md` rispetta un budget configurabile (default 4000 token). Se superato, applica automaticamente strategie di riduzione: prima rimuove le descrizioni, poi crea index separati per categoria. L'agente può sempre navigare la wiki anche su context window limitate.
+
+---
+
+## Installazione
+
+### Requisiti
+
+- Python 3.10+
+- `pip install -r requirements.txt`
+
+### Setup
+
+```bash
+# Clona il repo
+git clone https://github.com/giovannifrontera/ai-wiki-system
+cd ai-wiki-system
+
+# Installa dipendenze
+pip install -r requirements.txt
+
+# Copia e configura
+cp wiki.config.json my-workspace/wiki.config.json
+# Modifica workspace, projects, thresholds
+
+# Inizializza il database vettoriale
+py scripts/wiki.py rebuild --workspace my-workspace/
+```
+
+### Test
+
+```bash
+cd ai-wiki-system
+pytest tests/ -v
+# Atteso: 37 test passati
+```
+
+---
+
+## CLI Reference
+
+```
+wiki.py <comando> [argomenti]
+
+  ingest         --workspace <path> --pages <p1.tmp,p2.tmp,...> --log <str>
+  query          --workspace <path> --q <stringa> [--k 5]
+  lint           --workspace <path> [--full]
+  index          --workspace <path>
+  rebuild        --workspace <path>
+  session-update --workspace <path> --op <tipo> --status <ok|failed|in-progress> [--detail <json>]
+```
+
+Ogni comando produce JSON su stdout:
+
+```json
+{ "status": "ok", "op": "ingest", "pages_written": 2, "conflicts": [], "mini_lint": "ok" }
+{ "status": "error", "code": "lock_exists", "message": "...", "recoverable": true }
+```
+
+---
+
+## Configurazione
+
+```json
+{
+  "workspace": "/path/to/workspace",
+  "projects": {
+    "trading": {
+      "path": "wiki-works/trading",
+      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni"]
+    },
+    "ricerca": {
+      "path": "wiki-works/ricerca",
+      "keywords": ["paper", "studio", "PRISMA", "articolo", "ricerca"]
+    }
+  },
+  "thresholds": {
+    "index_token_budget": 4000,
+    "staleness_days": 90,
+    "similarity_merge": 0.95,
+    "synthesis_min_tokens": 300,
+    "synthesis_min_sources": 2,
+    "chunk_size_tokens": 512,
+    "chunk_overlap_tokens": 64,
+    "page_chunk_threshold_tokens": 1500,
+    "quality_filter_min_score": 6
+  },
+  "lancedb": {
+    "path": "memory/lancedb",
+    "embedding_model": "BAAI/bge-m3"
+  }
+}
+```
+
+---
+
+## Documentazione
+
+- [`DESIGN.md`](DESIGN.md) — architettura dettagliata, workflow, schema LanceDB
+- [`SPEC.md`](SPEC.md) — specifiche implementative, stati di errore, integrazione OpenClaw
+- [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
+
+---
+
+## Licenza
+
+MIT
