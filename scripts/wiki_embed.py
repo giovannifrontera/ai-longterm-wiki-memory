@@ -80,6 +80,9 @@ def chunk_text(
     return chunks if chunks else [text]
 
 
+_MAX_CHARS = 30_000
+
+
 def embed_file(
     path: str,
     chunk_size: int = 512,
@@ -90,6 +93,9 @@ def embed_file(
     """Legge un file .md e ritorna lista di chunk con vettori e hash."""
     with open(path, encoding="utf-8") as f:
         text = f.read()
+
+    if len(text) > _MAX_CHARS:
+        text = text[:_MAX_CHARS] + "\n\n[... file troncato per limite embedding]"
 
     page_hash = hashlib.sha256(text.encode()).hexdigest()
     chunks = chunk_text(text, chunk_size, overlap, threshold, model_name)

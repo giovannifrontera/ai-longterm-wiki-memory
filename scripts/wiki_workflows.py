@@ -137,6 +137,26 @@ def cmd_index(args, cfg):
     ok({"op": "index", "wiki_dir": wiki_dir})
 
 
+_WIKI_ROOTS = ("wiki", "wiki-works")
+_MAX_FILE_BYTES = 200_000
+
+
+def _wiki_md_files(workspace: str):
+    """Itera solo su wiki/ e wiki-works/, salta file >200 KB."""
+    for root_name in _WIKI_ROOTS:
+        root = Path(workspace) / root_name
+        if not root.is_dir():
+            continue
+        for md_file in root.rglob("*.md"):
+            if md_file.name in EXCLUDED_NAMES:
+                continue
+            if "raw" in md_file.parts or ".archive" in md_file.parts:
+                continue
+            if md_file.stat().st_size > _MAX_FILE_BYTES:
+                continue
+            yield md_file
+
+
 def cmd_rebuild(args, cfg):
     db = get_db(_lancedb_path(args.workspace, cfg))
     thresholds = cfg["thresholds"]
@@ -145,11 +165,7 @@ def cmd_rebuild(args, cfg):
         db.drop_table("wiki_pages")
 
     count = 0
-    for md_file in Path(args.workspace).rglob("*.md"):
-        if md_file.name in EXCLUDED_NAMES:
-            continue
-        if "raw" in md_file.parts or ".archive" in md_file.parts:
-            continue
+    for md_file in _wiki_md_files(args.workspace):
         rel = os.path.relpath(str(md_file), args.workspace).replace("\\", "/")
         chunks = embed_file(
             str(md_file),
@@ -234,6 +250,6 @@ Pagine totali: {_count_pages(workspace)}
 
 def _count_pages(workspace: str) -> int:
     return sum(
-        1 for p in Path(workspace).rglob("*.md")
-        if p.name not in EXCLUDED_NAMES and "raw" not in p.parts and not p.name.endswith(".tmp")
+        1 for md_file in _wiki_md_files(workspace)
+        if not md_file.name.endswith(".tmp")
     )
