@@ -78,3 +78,32 @@ def chunk_text(
         chunks.append(current.strip())
 
     return chunks if chunks else [text]
+
+
+def embed_file(
+    path: str,
+    chunk_size: int = 512,
+    overlap: int = 64,
+    threshold: int = 1500,
+    model_name: str = "BAAI/bge-m3",
+) -> list[dict]:
+    """Legge un file .md e ritorna lista di chunk con vettori e hash."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+
+    page_hash = hashlib.sha256(text.encode()).hexdigest()
+    chunks = chunk_text(text, chunk_size, overlap, threshold, model_name)
+    model, _ = _load_model(model_name)
+
+    result = []
+    for i, chunk in enumerate(chunks):
+        vector = model.encode(chunk, normalize_embeddings=True).tolist()
+        content_hash = hashlib.sha256(chunk.encode()).hexdigest()
+        result.append({
+            "chunk_id": i,
+            "chunk_text": chunk,
+            "vector": vector,
+            "content_hash": content_hash,
+            "page_hash": page_hash,
+        })
+    return result
