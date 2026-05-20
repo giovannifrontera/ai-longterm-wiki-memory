@@ -58,7 +58,9 @@ def cmd_ingest(args, cfg):
 
     _write_session(workspace, "ingest", "in-progress", {})
 
-    tmp_paths = [p.strip() for p in args.pages.split(",")]
+    # Normalizza i path .tmp in assoluti: l'agente può passarli relativi al workspace
+    raw_paths = [p.strip() for p in args.pages.split(",")]
+    tmp_paths = [p if os.path.isabs(p) else os.path.join(workspace, p) for p in raw_paths]
     final_paths = []
 
     try:
@@ -103,11 +105,11 @@ def cmd_ingest(args, cfg):
 
     except Exception as e:
         rollback_staging(db)
-        for tmp_path, _ in final_paths:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-        _write_session(workspace, "ingest", "failed", {"error": str(e)})
-        error("ingest_failed", str(e))
+        # I .tmp rimangono su disco: l'agente può correggere l'errore e reingestare
+        pending = [tp for tp in tmp_paths if os.path.exists(tp)]
+        _write_session(workspace, "ingest", "failed", {"error": str(e), "pending_tmp": pending})
+        _append_log(workspace, "wiki", f"ingest-failed | {e} | pending: {len(pending)} file .tmp")
+        error("ingest_failed", str(e), pending_tmp=pending)
     finally:
         release_lock(lock_path)
 
@@ -201,7 +203,7 @@ def cmd_lint(args, cfg):
             if not os.path.exists(full):
                 report.append({"type": "orphan_entry", "path": path})
                 try:
-                    table.delete(f"path = '{path}'")
+                    table.delete(f"path = '{path.replace(chr(39), chr(39)*2)}'")
                 except Exception:
                     pass
 
