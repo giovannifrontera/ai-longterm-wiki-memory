@@ -1,0 +1,82 @@
+import sys, os, hashlib
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+
+import pytest
+from wiki_lancedb import get_db, ensure_table, upsert, query_similar, promote_staging, rollback_staging, detect_renames
+
+FAKE_VECTOR = [0.01] * 1024
+
+def make_chunks(path, n=1):
+    return [{"chunk_id": i, "chunk_text": f"testo chunk {i}", "content_hash": f"hash{i}",
+             "page_hash": "pagehash", "vector": FAKE_VECTOR} for i in range(n)]
+
+def test_ensure_table_creates_table(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    ensure_table(db)
+    assert "wiki_pages" in db.table_names()
+
+def test_upsert_adds_rows(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    upsert(db, "wiki/concepts/test.md", make_chunks("test", 2))
+    table = ensure_table(db)
+    df = table.to_pandas()
+    assert len(df[df["path"] == "wiki/concepts/test.md"]) == 2
+
+def test_upsert_replaces_all_chunks(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    upsert(db, "wiki/concepts/test.md", make_chunks("test", 3))
+    upsert(db, "wiki/concepts/test.md", make_chunks("test", 1))
+    table = ensure_table(db)
+    df = table.to_pandas()
+    assert len(df[df["path"] == "wiki/concepts/test.md"]) == 1
+
+def test_upsert_does_not_affect_other_paths(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    upsert(db, "wiki/concepts/a.md", make_chunks("a"))
+    upsert(db, "wiki/concepts/b.md", make_chunks("b"))
+    upsert(db, "wiki/concepts/a.md", make_chunks("a_new", 2))
+    table = ensure_table(db)
+    df = table.to_pandas()
+    assert len(df[df["path"] == "wiki/concepts/b.md"]) == 1
+
+def test_query_similar_returns_results(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    upsert(db, "wiki/concepts/test.md", make_chunks("test"))
+    results = query_similar(db, FAKE_VECTOR, k=1)
+    assert len(results) >= 1
+    assert "path" in results[0]
+
+def test_promote_staging_moves_to_wiki(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    upsert(db, "wiki/concepts/test.md", make_chunks("test"), table_name="staging_wiki_pages")
+    promote_staging(db)
+    wiki = ensure_table(db, "wiki_pages")
+    df = wiki.to_pandas()
+    assert len(df[df["path"] == "wiki/concepts/test.md"]) == 1
+    staging = ensure_table(db, "staging_wiki_pages")
+    assert staging.to_pandas().empty
+
+def test_rollback_staging_clears_staging(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    upsert(db, "wiki/concepts/test.md", make_chunks("test"), table_name="staging_wiki_pages")
+    rollback_staging(db)
+    staging = ensure_table(db, "staging_wiki_pages")
+    assert staging.to_pandas().empty
+    wiki = ensure_table(db, "wiki_pages")
+    assert wiki.to_pandas().empty
+
+def test_detect_renames(tmp_workspace):
+    db = get_db(str(tmp_workspace / "memory" / "lancedb"))
+    content = "# Pagina rinominata\nContenuto."
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
+    old_path = "wiki/concepts/old-name.md"
+    chunks = [{"chunk_id": 0, "chunk_text": content, "content_hash": content_hash,
+                "page_hash": content_hash, "vector": FAKE_VECTOR}]
+    upsert(db, old_path, chunks)
+    new_file = tmp_workspace / "wiki" / "concepts" / "new-name.md"
+    new_file.write_text(content, encoding="utf-8")
+    new_path = str(new_file)
+    renames = detect_renames(db, {new_path})
+    assert len(renames) == 1
+    assert renames[0]["old_path"] == old_path
+    assert renames[0]["new_path"] == new_path

@@ -1,0 +1,122 @@
+"""Operazioni LanceDB per il wiki system."""
+
+import time
+import hashlib
+import pyarrow as pa
+import lancedb
+
+SCHEMA = pa.schema([
+    pa.field("path", pa.string()),
+    pa.field("chunk_id", pa.int32()),
+    pa.field("chunk_text", pa.string()),
+    pa.field("content_hash", pa.string()),
+    pa.field("page_hash", pa.string()),
+    pa.field("vector", pa.list_(pa.float32(), 1024)),
+    pa.field("last_embedded", pa.float64()),
+])
+
+
+def get_db(lancedb_path: str):
+    return lancedb.connect(lancedb_path)
+
+
+def ensure_table(db, table_name: str = "wiki_pages"):
+    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    if table_name not in existing:
+        db.create_table(table_name, schema=SCHEMA)
+    return db.open_table(table_name)
+
+
+def _chunks_to_rows(path: str, chunks: list[dict]) -> list[dict]:
+    return [{
+        "path": path,
+        "chunk_id": c["chunk_id"],
+        "chunk_text": c["chunk_text"],
+        "content_hash": c["content_hash"],
+        "page_hash": c["page_hash"],
+        "vector": [float(v) for v in c["vector"]],
+        "last_embedded": time.time(),
+    } for c in chunks]
+
+
+def upsert(db, path: str, chunks: list[dict], table_name: str = "wiki_pages") -> None:
+    """Cancella tutti i chunk esistenti per path, poi inserisce i nuovi."""
+    table = ensure_table(db, table_name)
+    try:
+        table.delete(f"path = '{path}'")
+    except Exception:
+        pass
+    rows = _chunks_to_rows(path, chunks)
+    if rows:
+        table.add(rows)
+
+
+def promote_staging(db) -> None:
+    """Promuove staging_wiki_pages → wiki_pages e svuota staging."""
+    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    if "staging_wiki_pages" not in existing:
+        return
+    staging = db.open_table("staging_wiki_pages")
+    df = staging.to_pandas()
+    if df.empty:
+        return
+    wiki = ensure_table(db, "wiki_pages")
+    for path in df["path"].unique():
+        try:
+            wiki.delete(f"path = '{path}'")
+        except Exception:
+            pass
+    wiki.add(df.to_dict("records"))
+    try:
+        staging.delete("1=1")
+    except Exception:
+        pass
+
+
+def rollback_staging(db) -> None:
+    """Svuota staging senza toccare wiki_pages."""
+    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    if "staging_wiki_pages" not in existing:
+        return
+    staging = db.open_table("staging_wiki_pages")
+    try:
+        staging.delete("1=1")
+    except Exception:
+        pass
+
+
+def query_similar(db, vector: list[float], k: int = 5, path_prefix: str = None) -> list[dict]:
+    table = ensure_table(db, "wiki_pages")
+    q = table.search(vector).limit(k)
+    if path_prefix:
+        q = q.where(f"path LIKE '{path_prefix}%'")
+    return q.to_list()
+
+
+def detect_renames(db, filesystem_paths: set[str]) -> list[dict]:
+    """Confronta LanceDB vs filesystem per rilevare file rinominati."""
+    table = ensure_table(db, "wiki_pages")
+    df = table.to_pandas()
+    if df.empty:
+        return []
+
+    df0 = df[df["chunk_id"] == 0]
+    db_paths = set(df0["path"].tolist())
+
+    only_in_db = db_paths - filesystem_paths
+    only_in_fs = filesystem_paths - db_paths
+
+    db_hash_to_path = {row["content_hash"]: row["path"]
+                       for _, row in df0[df0["path"].isin(only_in_db)].iterrows()}
+
+    renames = []
+    for fs_path in only_in_fs:
+        try:
+            with open(fs_path, encoding="utf-8") as f:
+                content = f.read()
+            h = hashlib.sha256(content.encode()).hexdigest()
+            if h in db_hash_to_path:
+                renames.append({"old_path": db_hash_to_path[h], "new_path": fs_path})
+        except OSError:
+            pass
+    return renames
