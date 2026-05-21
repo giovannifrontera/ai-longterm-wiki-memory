@@ -4,7 +4,7 @@
 
 **Semantic long-term memory for AI agents**
 
-Give your AI agent a wiki it actually maintains — not a flat note dump, but a structured, searchable, self-healing knowledge base.
+Give your AI agent a wiki it actually maintains — not a flat note dump, but a structured, self-healing knowledge base where every page is simultaneously a readable document and a searchable vector.
 
 [![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
@@ -38,22 +38,54 @@ User: "study this paper on RAG architectures"
 Agent: [INTENT: INGEST | WORKSPACE: research | CONFIDENCE: high]
        → fetches content, writes structured pages as .tmp files
        → calls wiki.py ingest (atomic commit: staging → production)
+       → embeddings written to LanceDB in the same atomic operation
        → "2 pages written. 1 conflict resolved. Mini-lint: ok."
 
 User: "what do you know about retrieval-augmented generation?"
 
 Agent: [INTENT: QUERY | WORKSPACE: research | CONFIDENCE: high]
-       → semantic vector search across wiki chunks
+       → semantic vector search across embedded wiki pages
        → reads relevant pages, synthesizes with citations
-       → if synthesis meets threshold → auto-saves as new wiki page
+       → if synthesis meets threshold → auto-saves as new wiki page + embeddings
 ```
+
+---
+
+## The core architectural idea: wiki and vector DB as one
+
+> **Karpathy's original pattern** ([gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) assumed the LLM would navigate the wiki by *reading* its markdown files — essentially visual inspection of a directory structure. This works for small wikis but breaks down at scale: the agent cannot scan dozens of pages on every query.
+
+AI Wiki System solves this with a **dual-representation architecture**: every wiki page is two things at once.
+
+```
+  Write a wiki page
+        │
+        ▼
+┌───────────────────┐     ┌──────────────────────────┐
+│  Markdown file    │     │  LanceDB vector store     │
+│  wiki/concepts/   │◄────►  bge-m3 embeddings        │
+│  rag.md           │     │  (1024-dim, HNSW index)   │
+└───────────────────┘     └──────────────────────────┘
+   humans navigate             LLM retrieves
+   LLM generates               semantically
+```
+
+The markdown file and its embeddings are **written atomically in the same operation** and kept in sync at all times. When a page is updated, the vectors are re-embedded. When a page is deleted, its vectors are removed. The lint pass detects and repairs any drift.
+
+This means:
+
+- **The agent never scans files to answer a query.** It calls `wiki.py query`, which runs a vector similarity search and returns the most relevant pages — even when the query has no keyword overlap with the content.
+- **The wiki is always queryable without re-indexing.** There is no "build the index" step. The vector DB is the index, maintained continuously.
+- **Navigation and retrieval serve different purposes.** Humans browse the markdown; the LLM retrieves via vectors. Both views are always consistent.
+
+A query about *"how LLMs handle long context"* retrieves pages about *"positional encoding"* and *"sliding window attention"* — without any keyword overlap — because the meaning is close in embedding space.
 
 ---
 
 ## Key features
 
 ### Semantic vector search
-Uses [bge-m3](https://huggingface.co/BAAI/bge-m3) embeddings (multilingual, 1024-dim, HNSW index). A query about *"how LLMs handle long context"* finds pages about *"positional encoding"* and *"sliding window attention"* — even without keyword overlap.
+Uses [bge-m3](https://huggingface.co/BAAI/bge-m3) embeddings (multilingual, 1024-dim, HNSW index). Queries retrieve by meaning, not keywords.
 
 ### Atomic writes — crash-safe
 Every ingest follows a `.tmp → staging LanceDB → atomic promotion` pattern. A crash mid-operation leaves the system in a detectable state (`status: in-progress` in `wiki-session.md`). The agent recovers gracefully at the next session without silent data corruption.
@@ -62,13 +94,14 @@ Every ingest follows a `.tmp → staging LanceDB → atomic promotion` pattern. 
 Define multiple research domains in `wiki.config.json` with keyword lists. The agent auto-selects the right workspace from message content — no need to specify it manually.
 
 ### Automatic synthesis
-When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds non-literal inference, the agent saves it as a new wiki page. Knowledge compounds over time.
+When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds non-literal inference, the agent saves it as a new wiki page — with its embeddings written atomically. Knowledge compounds over time.
 
 ### Self-healing lint
 `wiki.py lint --full` detects and repairs:
 - **Broken wiki links** (`[[page]]` with no matching file)
 - **Orphan LanceDB entries** (vectors for deleted files — auto-removed)
 - **Renames** (file moved → updates DB path without re-embedding, using `content_hash` comparison)
+- **Semantic duplicates** (cosine similarity > 0.95 across pages)
 
 ### Token-budget index
 `index.md` respects a configurable token budget (default 4000). When exceeded, it applies reduction strategies automatically — so the agent can navigate the wiki even on small context windows.
@@ -153,9 +186,9 @@ py scripts/wiki.py rebuild --workspace /path/to/your/workspace
 
 | User says | Agent does |
 |-----------|-----------|
-| URL / "study this" / file | INGEST: fetch → structure → atomic write → lint |
+| URL / "study this" / file | INGEST: fetch → structure → atomic write + embed |
 | Direct question / "explain" | QUERY: vector search → read pages → synthesize |
-| "check the wiki" / "maintenance" | LINT: broken links, orphans, renames |
+| "check the wiki" / "maintenance" | LINT: broken links, orphans, renames, semantic duplicates |
 | Ambiguous | Asks one clarifying question, never guesses |
 
 The agent always emits a classification line before acting:
@@ -175,8 +208,6 @@ If the agent finds `in-progress` at session start, it warns before doing anythin
 
 ---
 
----
-
 ## Origins & Inspiration
 
 AI Wiki System is inspired by the **LLM Wiki Pattern** described by [Andrej Karpathy](https://karpathy.ai/) in his gist [*"llm-wiki: a pattern for persistent, LLM-maintained knowledge bases"*](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
@@ -188,24 +219,24 @@ Karpathy's core insight: instead of re-deriving knowledge on every query (classi
 | Dimension | Karpathy's pattern | AI Wiki System |
 |-----------|-------------------|----------------|
 | **Form** | Conceptual pattern — prose + guidelines | Full Python implementation with CLI |
-| **Retrieval** | Suggests optional BM25/vector (qmd) | Built-in semantic search: BAAI/bge-m3 (1024-dim, multilingual) + LanceDB |
-| **Crash safety** | Not addressed | Atomic `.tmp → staging → promotion` pipeline; detectable `in-progress` state on crash |
-| **Multi-project** | Single wiki | Routed workspaces via `wiki.config.json` keywords; workspace auto-selected from message content |
-| **Knowledge compounding** | Query answers stay in chat | Auto-synthesis: responses integrating ≥2 sources over 300 tokens are saved as new wiki pages |
-| **Lint** | Basic health check concept | 11-check self-healing lint: stale vectors, orphan entries, broken links, semantic duplicates (cosine > 0.95), staleness flags |
-| **Index management** | Manual `index.md` maintained by agent | Token-budget `index.md` generated on-demand from filesystem — no "index out of sync" class of bugs |
-| **Rename detection** | Not addressed | Content-hash comparison detects file renames; updates DB path without re-embedding |
-| **Agent integration** | CLAUDE.md / AGENTS.md schema file | Native OpenClaw integration with session-state tracking and intent classification protocol |
-| **Languages** | English-focused | Multilingual — bge-m3 supports 100+ languages natively |
+| **Retrieval** | LLM reads/scans markdown files visually | Semantic vector search — LLM never scans files |
+| **Wiki + vectors** | Separate concerns (or unaddressed) | One atomic operation: write page = write embeddings |
+| **Crash safety** | Not addressed | Atomic `.tmp → staging → promotion` pipeline |
+| **Multi-project** | Single wiki | Routed workspaces via `wiki.config.json` |
+| **Knowledge compounding** | Query answers stay in chat | Auto-synthesis: saved as new wiki page + embeddings |
+| **Lint** | Basic health check concept | 11-check self-healing: orphan vectors, semantic duplicates, renames |
+| **Index management** | Manual `index.md` maintained by agent | Token-budget `index.md` generated on-demand |
+| **Rename detection** | Not addressed | Content-hash comparison → path update without re-embedding |
+| **Languages** | English-focused | Multilingual — bge-m3 supports 100+ languages |
 | **Testing** | None | 37 automated tests |
 
 ### Key architectural differences
 
+**Dual-representation by design** — Karpathy's pattern treats the wiki as a file system the agent reads. AI Wiki System treats every page as having two synchronized representations: markdown for humans and generation, vectors for retrieval. These are written together, maintained together, and linted together. There is no gap between "what's in the files" and "what's searchable."
+
 **Two-level wiki** — Karpathy proposes a single wiki directory. AI Wiki System separates permanent curated knowledge (`wiki/`) from active project research (`wiki-works/<project>/`). Research noise never pollutes the stable knowledge base.
 
-**No direct agent writes** — The agent never writes to the wiki directly. Everything goes through `wiki.py`. The skill guides *when* and *why*; the scripts enforce *how*. This single invariant eliminates the class of corruption bugs where agents write partial or malformed pages.
-
-**JSON-first CLI** — All `wiki.py` commands emit structured JSON, making the system composable with other tools and scriptable in automated pipelines.
+**No direct agent writes** — The agent never writes to the wiki directly. Everything goes through `wiki.py`. This single invariant eliminates the class of corruption bugs where agents write partial or malformed pages.
 
 ---
 
