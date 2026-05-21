@@ -1,143 +1,143 @@
 # Roadmap — AI Wiki System
 
-Idee di sviluppo future, non ancora pianificate. Ordinate per priorità stimata.
+Future development ideas, not yet scheduled. Ordered by estimated priority.
 
 ---
 
 ## [DONE] Pre-prompt context injection — v1.1.0
 
-**Stato:** Rilasciato in v1.1.0 (2026-05-21)
+**Status:** Released in v1.1.0 (2026-05-21)
 
-`wiki_context.py` esegue una ricerca vettoriale prima di ogni prompt utente e inietta le pagine rilevanti come blocco `<wiki-context>`. Wiring come `UserPromptSubmit` hook (Claude Code) o pre-hook (OpenClaw). Vedi `AGENTS_PATCH.md`.
+`wiki_context.py` runs a vector search before every user prompt and injects the relevant pages as a `<wiki-context>` block. Wired as a `UserPromptSubmit` hook (Claude Code) or pre-hook (OpenClaw). See `AGENTS_PATCH.md`.
 
 ---
 
 ## [PLANNED] MCP Scientific Database Integration
 
-**Stato:** In valutazione  
-**Effort:** Medio (solo skill + template, nessuna modifica agli script Python)
+**Status:** Under evaluation
+**Effort:** Medium (skill + templates only, no changes to Python scripts)
 
-### Problema
+### Problem
 
-Il workflow INGEST attuale usa `web_search` + `web_fetch` per recuperare contenuti. Per paper accademici questo produce HTML grezzo: formattazione inconsistente, metadati sparsi, nessuna struttura citazionale.
+The current INGEST workflow uses `web_search` + `web_fetch` to retrieve content. For academic papers this produces raw HTML: inconsistent formatting, scattered metadata, no citation structure.
 
-### Soluzione
+### Solution
 
-Aggiungere un intent `RESEARCH_INGEST` nella skill `wiki-core.md` che usa i tool MCP per database scientifici quando disponibili:
+Add a `RESEARCH_INGEST` intent to `wiki-core.md` that uses MCP tools for scientific databases when available:
 
-| MCP Server | Database | Copertura |
-|------------|----------|-----------|
-| `mcp__pubmed` | PubMed / MEDLINE | Medicina, biologia, scienze della vita |
-| `mcp__semantic-scholar` | Semantic Scholar | Computer science, AI, interdisciplinare |
-| `mcp__eric` | ERIC | Educazione, pedagogia, psicologia scolastica |
-| `mcp__ricerca-italia` | OpenAIRE | Ricerca europea, Open Access italiani |
+| MCP Server | Database | Coverage |
+|------------|----------|----------|
+| `mcp__pubmed` | PubMed / MEDLINE | Medicine, biology, life sciences |
+| `mcp__semantic-scholar` | Semantic Scholar | Computer science, AI, interdisciplinary |
+| `mcp__eric` | ERIC | Education, pedagogy, school psychology |
+| `mcp__ricerca-italia` | OpenAIRE | European research, Italian Open Access |
 
-### Come funzionerebbe
+### How it would work
 
-**Riconoscimento intent:**
+**Intent recognition:**
 
-| Segnale | Intent |
-|---------|--------|
-| DOI nudo (`10.xxxx/...`), PMID, "cerca su pubmed", "trova paper su", "studi su", titolo di articolo | RESEARCH_INGEST |
+| Signal | Intent |
+|--------|--------|
+| Bare DOI (`10.xxxx/...`), PMID, "search pubmed", "find paper on", "studies on", article title | RESEARCH_INGEST |
 
-**Workflow `§research-ingest`:**
+**`§research-ingest` workflow:**
 
 ```
-1. Identifica il database più appropriato dal contesto (argomento, tipo di fonte)
-2. Chiama il tool MCP con query/DOI/PMID
-3. Riceve metadati strutturati: titolo, autori, abstract, anno, DOI, citazioni
-4. Opzionale: recupera full-text se disponibile (mcp__pubmed__get_paper_fulltext)
-5. Scrive pagine .tmp con template accademico (vedi sotto)
-6. Chiama wiki.py ingest come al solito (nessuna modifica agli script)
+1. Identify the most appropriate database from context (topic, source type)
+2. Call the MCP tool with query/DOI/PMID
+3. Receive structured metadata: title, authors, abstract, year, DOI, citations
+4. Optional: retrieve full text if available (mcp__pubmed__get_paper_fulltext)
+5. Write .tmp pages using academic template (see below)
+6. Call wiki.py ingest as usual (no changes to scripts)
 ```
 
-**Template pagina paper:**
+**Paper page template:**
 
 ```markdown
 ---
 type: paper
 doi: 10.xxxx/...
-authors: [Cognome, Nome; ...]
+authors: [Last, First; ...]
 year: 2024
-journal: Nome rivista
+journal: Journal name
 keywords: [keyword1, keyword2]
 source_db: pubmed | semantic-scholar | eric | openaire
 ---
 
-# Titolo articolo
+# Article title
 
 ## Abstract
-[abstract completo]
+[full abstract]
 
-## Contributo principale
-[sintesi del contributo — scritto dall'agente]
+## Main contribution
+[summary of the contribution — written by the agent]
 
-## Metodi
-[se rilevante]
+## Methods
+[if relevant]
 
-## Limitazioni
-[se dichiarate]
+## Limitations
+[if stated]
 
-## Citazioni chiave
-- [[slug-paper-citato-1]]
-- [[slug-paper-citato-2]]
+## Key citations
+- [[cited-paper-1-slug]]
+- [[cited-paper-2-slug]]
 
-## Link
+## Links
 - DOI: https://doi.org/10.xxxx/...
-- Fonte: [database]
+- Source: [database]
 ```
 
-**Pagine collaterali generate automaticamente:**
+**Automatically generated side pages:**
 
-- `entities/authors/<cognome-nome>.md` — profilo autore con lista paper wiki
-- `entities/journals/<slug-rivista>.md` — rivista con impact factor e lista paper
-- Link bidirezionali citazioni → create da LINT se mancanti
+- `entities/authors/<last-first>.md` — author profile with list of wiki papers
+- `entities/journals/<journal-slug>.md` — journal with impact factor and paper list
+- Bidirectional citation links — created by LINT if missing
 
-### Portabilità
+### Portability
 
-I tool MCP sono disponibili solo se configurati in OpenClaw. La skill deve gestire il fallback:
+MCP tools are only available if configured in OpenClaw. The skill must handle the fallback:
 
 ```
-Se mcp__pubmed non disponibile → usa web_search su pubmed.ncbi.nlm.nih.gov
-Se mcp__semantic-scholar non disponibile → usa web_fetch su api.semanticscholar.org
+If mcp__pubmed not available → use web_search on pubmed.ncbi.nlm.nih.gov
+If mcp__semantic-scholar not available → use web_fetch on api.semanticscholar.org
 ```
 
-Nessuna modifica agli script Python — `wiki.py ingest` rimane identico.
+No changes to Python scripts — `wiki.py ingest` remains identical.
 
-### File da modificare
+### Files to modify
 
-- `skills/wiki-core.md` — aggiunta blocco `§research-ingest`
-- `skills/wiki-research.md` *(nuovo)* — skill opzionale caricabile separatamente con workflow dettagliati per ogni database
-- `SPEC.md` — aggiunta sezione §research-ingest
-- `README.md` — sezione "Academic Research"
-
----
-
-## [IDEA] Conflict resolution interattiva via chat
-
-**Stato:** Idea grezza  
-**Effort:** Alto
-
-Oggi il Conflict Livello 3 (contraddizione semantica tra fonti) blocca il merge e aspetta input umano. L'agente potrebbe presentare le due versioni in chat con una UI strutturata (opzione A / opzione B / merge manuale) invece di un messaggio generico.
+- `skills/wiki-core.md` — add `§research-ingest` block
+- `skills/wiki-research.md` *(new)* — optional skill loadable separately with detailed workflows per database
+- `SPEC.md` — add §research-ingest section
+- `README.md` — "Academic Research" section
 
 ---
 
-## [IDEA] Export PRISMA-ready
+## [IDEA] Interactive conflict resolution via chat
 
-**Stato:** Idea grezza  
-**Effort:** Medio
+**Status:** Rough idea
+**Effort:** High
 
-Per revisioni sistematiche: comando `wiki.py export --format prisma --workspace wiki-works/ricerca` che genera una tabella PRISMA da tutti i paper ingestionati, con campi: autore, anno, titolo, database fonte, criteri inclusione/esclusione (se taggati nelle pagine).
-
----
-
-## [IDEA] wiki-works → wiki promotion automatica
-
-**Stato:** Idea grezza  
-**Effort:** Basso
-
-`wiki.py promote --page wiki-works/trading/concepts/momentum.md` che sposta una pagina da wiki-works/ a wiki/, aggiorna tutti i link interni, e logga `promote` in log.md. Oggi il processo è manuale.
+Today a Level 3 conflict (semantic contradiction between sources) blocks the merge and waits for human input. The agent could present both versions in chat with a structured UI (option A / option B / manual merge) instead of a generic message.
 
 ---
 
-*Aggiornato: 2026-05-21*
+## [IDEA] PRISMA-ready export
+
+**Status:** Rough idea
+**Effort:** Medium
+
+For systematic reviews: a `wiki.py export --format prisma --workspace wiki-works/research` command that generates a PRISMA table from all ingested papers, with fields: author, year, title, source database, inclusion/exclusion criteria (if tagged in the pages).
+
+---
+
+## [IDEA] wiki-works → wiki automatic promotion
+
+**Status:** Rough idea
+**Effort:** Low
+
+`wiki.py promote --page wiki-works/trading/concepts/momentum.md` that moves a page from wiki-works/ to wiki/, updates all internal links, and logs `promote` in log.md. Today the process is manual.
+
+---
+
+*Updated: 2026-05-21*

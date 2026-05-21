@@ -1,35 +1,35 @@
-# Patch per AGENTS.md di Agent
+# AGENTS.md Patch
 
-Aggiungere queste righe in fondo alla sezione delle istruzioni operative:
+Add these lines at the end of the operative instructions section in your `AGENTS.md`:
 
 ---
 
 ## Wiki Knowledge System
 
-All'inizio di ogni sessione:
-1. Leggi `wiki-session.md` per il contesto wiki corrente
-2. Prima di qualsiasi operazione wiki, rileggi `skills/wiki-core.md` per verificare il protocollo
+At the start of every session:
+1. Read `wiki-session.md` for the current wiki context
+2. Before any wiki operation, re-read `skills/wiki-core.md` to verify the protocol
 
-Il wiki è il tuo cervello persistente. Usalo attivamente:
-- Ogni conoscenza rilevante va ingested nel wiki
-- Ogni domanda complessa va prima consultata nel wiki
-- Il LINT va eseguito ogni 2 settimane proattivamente
+The wiki is your persistent brain. Use it actively:
+- Every relevant piece of knowledge should be ingested into the wiki
+- Every complex question should first be checked against the wiki
+- Run LINT proactively every 2 weeks
 
-Non scrivere mai direttamente nelle directory `wiki/` o `wiki-works/`.
-Usa sempre `wiki.py` per qualsiasi operazione di scrittura.
+Never write directly into the `wiki/` or `wiki-works/` directories.
+Always use `wiki.py` for any write operation.
 
 ---
 
-## Context Injection (raccomandato)
+## Context Injection (recommended)
 
-Per evitare instruction drift e garantire che il wiki venga consultato su **ogni** prompt
-— non solo quando classificato come QUERY — configura `wiki_context.py` come hook
-pre-prompt. Il contesto wiki viene iniettato automaticamente prima che il messaggio
-raggiunga l'agente, senza dipendere dalla checklist.
+To prevent instruction drift and ensure the wiki is consulted on **every** prompt
+— not only when classified as QUERY — configure `wiki_context.py` as a pre-prompt hook.
+Wiki context is injected automatically before the message reaches the agent,
+without depending on the checklist.
 
-### Claude Code — hook `UserPromptSubmit`
+### Claude Code — `UserPromptSubmit` hook
 
-Aggiungi a `.claude/settings.json` (o `settings.local.json`) nel tuo workspace:
+Add to `.claude/settings.json` (or `settings.local.json`) in your workspace:
 
 ```json
 {
@@ -40,7 +40,7 @@ Aggiungi a `.claude/settings.json` (o `settings.local.json`) nel tuo workspace:
         "hooks": [
           {
             "type": "command",
-            "command": "py /PERCORSO/ASSOLUTO/scripts/wiki_context.py --workspace /PERCORSO/ASSOLUTO/workspace --q \"$CLAUDE_USER_PROMPT\" --k 3"
+            "command": "py /ABSOLUTE/PATH/scripts/wiki_context.py --workspace /ABSOLUTE/PATH/workspace --q \"$CLAUDE_USER_PROMPT\" --k 3"
           }
         ]
       }
@@ -49,42 +49,42 @@ Aggiungi a `.claude/settings.json` (o `settings.local.json`) nel tuo workspace:
 }
 ```
 
-Sostituisci `/PERCORSO/ASSOLUTO/` con il percorso reale del tuo sistema.
-Su Windows usa backslash o percorsi con `/` in stile Unix (Git Bash li accetta entrambi).
+Replace `/ABSOLUTE/PATH/` with the real path on your system.
+On Windows you can use forward slashes (`/`) — Git Bash accepts both.
 
-**Nota prestazioni:** il primo avvio carica il modello bge-m3 (~3-5s). Le esecuzioni
-successive sono più rapide grazie alla cache di sentence-transformers.
-Per workspace vuoti o wiki non inizializzati, lo script termina silenziosamente in <0.1s.
+**Performance note:** the first run loads the bge-m3 model (~3-5s). Subsequent runs are
+faster thanks to sentence-transformers caching.
+For empty workspaces or uninitialised wikis, the script exits silently in <0.1s.
 
-### OpenClaw — pre-hook sul messaggio
+### OpenClaw — pre-hook on the message
 
-Nel file di configurazione del tuo agente OpenClaw, aggiungi un pre-hook che esegue:
+In your OpenClaw agent configuration, add a pre-hook that runs:
 
 ```bash
-py /percorso/scripts/wiki_context.py \
-  --workspace /percorso/workspace \
+py /path/scripts/wiki_context.py \
+  --workspace /path/workspace \
   --q "$MESSAGE_TEXT" \
   --k 3
 ```
 
-L'output del comando viene prepended al messaggio utente prima che raggiunga l'LLM.
+The command output is prepended to the user message before it reaches the LLM.
 
-### Comportamento con il contesto iniettato
+### Behaviour with injected context
 
-Quando l'hook è attivo, ogni prompt utente arriva all'agente preceduto da un blocco:
+When the hook is active, every user prompt arrives preceded by a block like:
 
 ```
 <wiki-context>
-Contesto wiki pre-caricato (top 3 pagine per rilevanza semantica):
+Pre-loaded wiki context (top 3 pages by semantic relevance):
 
-### wiki/concepts/rag.md  [rilevanza: 0.91]
-[contenuto pagina...]
+### wiki/concepts/rag.md  [relevance: 0.91]
+[page content...]
 
-### wiki-works/ricerca/synthesis/llm-memory.md  [rilevanza: 0.84]
-[contenuto pagina...]
+### wiki-works/research/synthesis/llm-memory.md  [relevance: 0.84]
+[page content...]
 </wiki-context>
 ```
 
-L'agente usa questo contesto direttamente — vedi `skills/wiki-core.md §injected-context`.
-Se nessuna pagina è rilevante (wiki vuoto o rilevanza bassa), lo script non emette nulla
-e il prompt arriva invariato.
+The agent uses this context directly — see `skills/wiki-core.md §injected-context`.
+If no pages are relevant (empty wiki or low relevance), the script emits nothing
+and the prompt arrives unchanged.

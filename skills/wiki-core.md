@@ -1,137 +1,137 @@
 ---
 name: wiki-core
-description: Protocollo wiki AI Agent — classificazione intent, workflow INGEST/QUERY/LINT, checklist obbligatoria, context injection
+description: AI Agent wiki protocol — intent classification, INGEST/QUERY/LINT workflows, mandatory checklist, context injection
 ---
 
-# Wiki Core — Protocollo AI Agent
+# Wiki Core — AI Agent Protocol
 
-Questo documento definisce come gestisci il knowledge wiki. Seguilo **sempre** prima di rispondere a qualsiasi messaggio che potrebbe riguardare il wiki.
+This document defines how you manage the knowledge wiki. Follow it **always** before responding to any message that may relate to the wiki.
 
-## §injected-context — Contesto pre-iniettato (priorità massima)
+## §injected-context — Pre-injected context (highest priority)
 
-Se nel prompt è presente un blocco `<wiki-context>...</wiki-context>`, significa che
-`wiki_context.py` ha già eseguito la ricerca vettoriale **prima** che il messaggio
-ti raggiungesse. In questo caso:
+If the prompt contains a `<wiki-context>...</wiki-context>` block, it means
+`wiki_context.py` already ran a vector search **before** the message reached you.
+In this case:
 
-- **USA il contesto iniettato** come base primaria della risposta
-- **NON eseguire** `wiki.py query` di nuovo — sarebbe ridondante
-- Per INGEST: confronta il nuovo contenuto con le pagine nel blocco per rilevare conflitti
-- Per AMBIGUO: usa il contesto per disambiguare l'intent senza chiedere
-- Se il blocco contiene `[rilevanza: X]` bassa (< 0.4) su tutte le pagine → il wiki
-  non ha conoscenza rilevante: procedi senza di esso e valuta se INGEST è appropriato
+- **USE the injected context** as the primary basis for your response
+- **DO NOT run** `wiki.py query` again — it would be redundant
+- For INGEST: compare the new content against the pages in the block to detect conflicts
+- For AMBIGUOUS: use the context to disambiguate intent without asking
+- If the block shows `[relevance: X]` below 0.4 on all pages → the wiki has no relevant
+  knowledge: proceed without it and consider whether INGEST is appropriate
 
-Se il blocco `<wiki-context>` **non è presente** (hook non configurato o wiki vuoto):
-esegui il §query workflow manualmente come fallback.
+If the `<wiki-context>` block is **not present** (hook not configured or empty wiki):
+fall back to the manual §query workflow.
 
-## Checklist pre-azione (obbligatoria)
+## Pre-action checklist (mandatory)
 
-Prima di rispondere a qualsiasi messaggio:
+Before responding to any message:
 
 ```
-1. Leggi wiki-session.md → controlla il campo "status"
-2. Se status = "in-progress" o "needs-repair" → avvisa l'utente PRIMA di qualsiasi altra cosa
-3. È presente <wiki-context> nel prompt? → sì: usa §injected-context | no: vai al passo 4
-4. Classifica l'intent del messaggio (vedi §classificazione)
-5. Il messaggio contiene più di un intent? Se sì, gestiscili in sequenza, uno alla volta
-6. Emetti la riga di classificazione:
-   [INTENT: X | WORKSPACE: Y | CERTEZZA: alta/media/bassa]
-7. Se CERTEZZA = bassa → chiedi conferma all'utente con UNA sola riga
-8. Se CERTEZZA = alta o media → procedi con il workflow
+1. Read wiki-session.md → check the "status" field
+2. If status = "in-progress" or "needs-repair" → warn the user BEFORE anything else
+3. Is <wiki-context> present in the prompt? → yes: use §injected-context | no: go to step 4
+4. Classify the intent of the message (see §classification)
+5. Does the message contain more than one intent? If so, handle them in sequence, one at a time
+6. Emit the classification line:
+   [INTENT: X | WORKSPACE: Y | CONFIDENCE: high/medium/low]
+7. If CONFIDENCE = low → ask the user for confirmation with ONE short line
+8. If CONFIDENCE = high or medium → proceed with the workflow
 ```
 
-## §classificazione — Come riconoscere l'intent
+## §classification — How to recognise intent
 
-| Segnale nel messaggio | Intent |
+| Signal in the message | Intent |
 |-----------------------|--------|
-| "studia questo", "salva", "ho trovato", "leggi questo", URL nudo, file allegato, "aggiungi al wiki" | INGEST |
-| Domanda diretta, "cosa sai di", "dimmi", "spiegami", "come funziona", "parlami di" | QUERY |
-| "controlla il wiki", "pulizia", "lint", "manutenzione", "controlla i link" | LINT |
-| Tutto il resto | AMBIGUO → chiedi conferma |
+| "study this", "save", "I found", "read this", bare URL, attached file, "add to wiki" | INGEST |
+| Direct question, "what do you know about", "tell me", "explain", "how does X work" | QUERY |
+| "check the wiki", "cleanup", "lint", "maintenance", "check links" | LINT |
+| Everything else | AMBIGUOUS → ask for confirmation |
 
-**Conferma per AMBIGUO:** una sola riga, mai lunga:
-> "Vuoi che salvi questo nel wiki o stai solo condividendo?"
+**Confirmation for AMBIGUOUS:** one line only, never long:
+> "Do you want me to save this to the wiki, or are you just sharing?"
 
-## §workspace — Selezione automatica del progetto
+## §workspace — Automatic project selection
 
-1. Leggi `wiki.config.json` → lista `projects` con keywords
-2. Conta match tra parole chiave del messaggio e keywords di ogni progetto
-3. Progetto con più match → selezionato
-4. Se pareggio tra due progetti → chiedi all'utente (una riga)
-5. Se nessun match → usa `wiki/` principale
+1. Read `wiki.config.json` → `projects` list with keywords
+2. Count matches between message keywords and each project's keywords
+3. Project with most matches → selected
+4. If two projects tie → ask the user (one line)
+5. If no matches → use the main `wiki/`
 
-## §ingest — Workflow INGEST
+## §ingest — INGEST workflow
 
-Esegui questi passi nell'ordine esatto:
+Execute these steps in exact order:
 
-**Fase A — Ricerca (tu):**
-1. `web_search` per 5-10 fonti candidate
-2. Applica quality filter (DESIGN.md §quality-filter): scarta fonti sotto score 6
-3. `web_fetch` sulle fonti promosse → salva in `<workspace>/wiki-works/<progetto>/raw/YYYY-MM-DD-slug.md`
-4. Leggi le fonti, identifica punti chiave e conflitti con wiki esistente
+**Phase A — Research (you):**
+1. `web_search` for 5-10 candidate sources
+2. Apply quality filter (DESIGN.md §quality-filter): discard sources below score 6
+3. `web_fetch` the promoted sources → save in `<workspace>/wiki-works/<project>/raw/YYYY-MM-DD-slug.md`
+4. Read the sources, identify key points and conflicts with existing wiki content
 
-**Fase B — Scrittura (tu → poi wiki.py):**
-1. Scrivi le nuove pagine come file `.tmp` nelle directory corrette:
-   - Entità (persone, aziende, strumenti) → `entities/<slug>.md.tmp`
-   - Concetti, teorie, strategie → `concepts/<slug>.md.tmp`
-   - Sintesi e inferenze cross-fonte → `synthesis/<slug>.md.tmp`
-2. Chiama wiki.py per il commit atomico:
+**Phase B — Writing (you → then wiki.py):**
+1. Write new pages as `.tmp` files in the correct directories:
+   - Entities (people, companies, tools) → `entities/<slug>.md.tmp`
+   - Concepts, theories, strategies → `concepts/<slug>.md.tmp`
+   - Synthesis and cross-source inferences → `synthesis/<slug>.md.tmp`
+2. Call wiki.py for the atomic commit:
    ```bash
    py scripts/wiki.py ingest \
      --workspace <path> \
      --pages <p1.tmp,p2.tmp,...> \
-     --log "ingest | <titolo>"
+     --log "ingest | <title>"
    ```
-3. Leggi l'output JSON → se `status: error` → avvisa l'utente con il messaggio
-4. Se `mini_lint: failed` → avvisa l'utente
+3. Read the JSON output → if `status: error` → warn the user with the message
+4. If `mini_lint: failed` → warn the user
 
-**Fase C — Report:**
-Riassumi in chat: fonti usate, pagine create, conflitti risolti.
+**Phase C — Report:**
+Summarise in chat: sources used, pages created, conflicts resolved.
 
-## §query — Workflow QUERY
+## §query — QUERY workflow
 
-**Se `<wiki-context>` è già presente nel prompt** (hook attivo): salta i passi 1-3,
-usa direttamente le pagine iniettate come base. Vai al passo 4.
+**If `<wiki-context>` is already present in the prompt** (hook active): skip steps 1-3,
+use the injected pages directly as the base. Go to step 4.
 
-**Se `<wiki-context>` non è presente** (fallback manuale):
-1. Controlla se index.md è stale:
+**If `<wiki-context>` is not present** (manual fallback):
+1. Check if index.md is stale:
    ```bash
    py scripts/wiki.py index --workspace <path>
    ```
-2. Cerca nel wiki con query vettoriale:
+2. Search the wiki with a vector query:
    ```bash
-   py scripts/wiki.py query --workspace <path> --q "<domanda>" --k 5
+   py scripts/wiki.py query --workspace <path> --q "<question>" --k 5
    ```
-3. Leggi le pagine nei risultati (usa `read`)
+3. Read the pages in the results (use `read`)
 
-**Sempre:**
-4. Consulta anche la tua memoria personale con i tuoi meccanismi
-5. Sintetizza la risposta con riferimenti `[pagina](path)`
-6. **Criteri synthesis:** se la risposta sintetizza ≥2 fonti wiki, supera 300 token, e aggiunge inferenza non letterale → salvala come pagina wiki tramite INGEST
+**Always:**
+4. Also consult your personal memory using your own mechanisms
+5. Synthesise the response with references `[page](path)`
+6. **Synthesis criteria:** if the response synthesises ≥2 wiki sources, exceeds 300 tokens, and adds non-literal inference → save it as a wiki page via INGEST
 
-## §lint — Workflow LINT
+## §lint — LINT workflow
 
 ```bash
 py scripts/wiki.py lint --workspace <path> --full
 ```
 
-Leggi il JSON di output e presenta i problemi trovati all'utente.
-Il lint risolve automaticamente: entry orfane, rename, vettori stale.
-Per broken links e duplicati: presenta le opzioni all'utente.
+Read the JSON output and present the issues found to the user.
+Lint resolves automatically: orphan entries, renames, stale vectors.
+For broken links and duplicates: present the options to the user.
 
-## §regola-synthesis — Quando creare una pagina wiki
+## §synthesis-rule — When to create a wiki page
 
-Crea una pagina wiki SOLO se soddisfa **tutti** questi criteri:
-- Sintetizza ≥2 fonti wiki distinte (non la memoria personale)
-- Lunghezza ≥300 token
-- Aggiunge inferenza che non sta letteralmente in nessuna fonte
+Create a wiki page ONLY if it meets **all** of these criteria:
+- Synthesises ≥2 distinct wiki sources (not personal memory)
+- Length ≥300 tokens
+- Adds inference not literally present in any single source
 
-**NON creare** se:
-- È il riassunto di una sola fonte (va in raw/)
-- Duplica una pagina esistente
-- Contiene affermazioni senza fonte
+**DO NOT create** if:
+- It summarises a single source (goes in raw/)
+- It duplicates an existing page
+- It contains claims without a source
 
-## §session — Gestione sessione
+## §session — Session management
 
-- All'inizio di ogni sessione: leggi `wiki-session.md`
-- Non modificare mai `wiki-session.md` direttamente: usa sempre `wiki.py session-update`
-- Se trovi `status: in-progress`: avvisa l'utente prima di qualsiasi operazione
+- At the start of every session: read `wiki-session.md`
+- Never modify `wiki-session.md` directly: always use `wiki.py session-update`
+- If you find `status: in-progress`: warn the user before any operation
