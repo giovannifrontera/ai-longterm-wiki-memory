@@ -1,11 +1,27 @@
 ---
 name: wiki-core
-description: Protocollo wiki AI Agent — classificazione intent, workflow INGEST/QUERY/LINT, checklist obbligatoria
+description: Protocollo wiki AI Agent — classificazione intent, workflow INGEST/QUERY/LINT, checklist obbligatoria, context injection
 ---
 
 # Wiki Core — Protocollo AI Agent
 
 Questo documento definisce come gestisci il knowledge wiki. Seguilo **sempre** prima di rispondere a qualsiasi messaggio che potrebbe riguardare il wiki.
+
+## §injected-context — Contesto pre-iniettato (priorità massima)
+
+Se nel prompt è presente un blocco `<wiki-context>...</wiki-context>`, significa che
+`wiki_context.py` ha già eseguito la ricerca vettoriale **prima** che il messaggio
+ti raggiungesse. In questo caso:
+
+- **USA il contesto iniettato** come base primaria della risposta
+- **NON eseguire** `wiki.py query` di nuovo — sarebbe ridondante
+- Per INGEST: confronta il nuovo contenuto con le pagine nel blocco per rilevare conflitti
+- Per AMBIGUO: usa il contesto per disambiguare l'intent senza chiedere
+- Se il blocco contiene `[rilevanza: X]` bassa (< 0.4) su tutte le pagine → il wiki
+  non ha conoscenza rilevante: procedi senza di esso e valuta se INGEST è appropriato
+
+Se il blocco `<wiki-context>` **non è presente** (hook non configurato o wiki vuoto):
+esegui il §query workflow manualmente come fallback.
 
 ## Checklist pre-azione (obbligatoria)
 
@@ -14,12 +30,13 @@ Prima di rispondere a qualsiasi messaggio:
 ```
 1. Leggi wiki-session.md → controlla il campo "status"
 2. Se status = "in-progress" o "needs-repair" → avvisa Gio PRIMA di qualsiasi altra cosa
-3. Classifica l'intent del messaggio (vedi §classificazione)
-4. Il messaggio contiene più di un intent? Se sì, gestiscili in sequenza, uno alla volta
-5. Emetti la riga di classificazione:
+3. È presente <wiki-context> nel prompt? → sì: usa §injected-context | no: vai al passo 4
+4. Classifica l'intent del messaggio (vedi §classificazione)
+5. Il messaggio contiene più di un intent? Se sì, gestiscili in sequenza, uno alla volta
+6. Emetti la riga di classificazione:
    [INTENT: X | WORKSPACE: Y | CERTEZZA: alta/media/bassa]
-6. Se CERTEZZA = bassa → chiedi conferma a Gio con UNA sola riga
-7. Se CERTEZZA = alta o media → procedi con il workflow
+7. Se CERTEZZA = bassa → chiedi conferma a Gio con UNA sola riga
+8. Se CERTEZZA = alta o media → procedi con il workflow
 ```
 
 ## §classificazione — Come riconoscere l'intent
@@ -72,6 +89,10 @@ Riassumi in chat: fonti usate, pagine create, conflitti risolti.
 
 ## §query — Workflow QUERY
 
+**Se `<wiki-context>` è già presente nel prompt** (hook attivo): salta i passi 1-3,
+usa direttamente le pagine iniettate come base. Vai al passo 4.
+
+**Se `<wiki-context>` non è presente** (fallback manuale):
 1. Controlla se index.md è stale:
    ```bash
    py scripts/wiki.py index --workspace <path>
@@ -81,6 +102,8 @@ Riassumi in chat: fonti usate, pagine create, conflitti risolti.
    py scripts/wiki.py query --workspace <path> --q "<domanda>" --k 5
    ```
 3. Leggi le pagine nei risultati (usa `read`)
+
+**Sempre:**
 4. Consulta anche la tua memoria personale con i tuoi meccanismi
 5. Sintetizza la risposta con riferimenti `[pagina](path)`
 6. **Criteri synthesis:** se la risposta sintetizza ≥2 fonti wiki, supera 300 token, e aggiunge inferenza non letterale → salvala come pagina wiki tramite INGEST
