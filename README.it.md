@@ -1,5 +1,7 @@
 # AI Wiki System
 
+[![Version](https://img.shields.io/badge/versione-1.1.0-informational)](CHANGELOG.md)
+
 Un sistema di memoria wiki semantica per agenti AI — progettato per funzionare con [OpenClaw](https://github.com/openclaw/openclaw) e qualsiasi agente capace di leggere file e chiamare comandi bash.
 
 ---
@@ -28,6 +30,7 @@ workspace/
 ├── wiki.config.json          ← configurazione
 ├── scripts/
 │   ├── wiki.py               ← entry point CLI
+│   ├── wiki_context.py       ← iniettore di contesto pre-prompt (hook)
 │   ├── wiki_embed.py         ← chunking + embedding bge-m3
 │   ├── wiki_lancedb.py       ← operazioni LanceDB (upsert, staging, rename)
 │   └── wiki_index.py         ← generazione index.md con budget token
@@ -87,6 +90,7 @@ Con AI Wiki System, un agente OpenClaw diventa un **ricercatore con memoria a lu
    ```
 3. Configura `wiki.config.json` con i tuoi progetti
 4. Inizializza: `py scripts/wiki.py rebuild --workspace <path>`
+5. (Consigliato) Configura l'hook di iniezione: vedi [`AGENTS_PATCH.md`](AGENTS_PATCH.md)
 
 ---
 
@@ -120,6 +124,25 @@ Ogni ingest usa un pattern `.tmp` → staging LanceDB → promozione atomica. Se
 ### Budget token per l'index
 
 `index.md` rispetta un budget configurabile (default 4000 token). Se superato, applica automaticamente strategie di riduzione: prima rimuove le descrizioni, poi crea index separati per categoria. L'agente può sempre navigare la wiki anche su context window limitate.
+
+### Iniezione di contesto pre-prompt *(v1.1)*
+
+`wiki_context.py` esegue una ricerca vettoriale **prima che ogni messaggio dell'utente raggiunga l'agente** e inietta un blocco `<wiki-context>` con le pagine più rilevanti. Questo elimina il principale failure mode degli approcci basati su skill: l'instruction drift che porta l'agente a ignorare la wiki sugli intent non-QUERY.
+
+```
+L'utente invia un messaggio
+        │
+        ▼
+wiki_context.py esegue la ricerca vettoriale
+        │
+        ▼
+Blocco <wiki-context> iniettato nel prompt
+        │
+        ▼
+L'agente ha sempre il contesto rilevante — indipendentemente dalla classificazione dell'intent
+```
+
+Si configura come hook `UserPromptSubmit` (Claude Code) o pre-hook (OpenClaw). Vedi [`AGENTS_PATCH.md`](AGENTS_PATCH.md) per la configurazione esatta. Lo script termina sempre con exit 0 — non blocca mai un prompt.
 
 ---
 
@@ -169,6 +192,13 @@ wiki.py <comando> [argomenti]
   index          --workspace <path>
   rebuild        --workspace <path>
   session-update --workspace <path> --op <tipo> --status <ok|failed|in-progress> [--detail <json>]
+
+wiki_context.py [hook — emette un blocco <wiki-context> su stdout]
+
+  --workspace    <path>    workspace contenente wiki.config.json
+  --q            <stringa> testo della query (il prompt utente)
+  --k            <intero>  numero di pagine da restituire (default: 3)
+  --max-chars    <intero>  caratteri massimi per estratto pagina (default: 600)
 ```
 
 Ogni comando produce JSON su stdout:
@@ -220,6 +250,22 @@ Ogni comando produce JSON su stdout:
 - [`DESIGN.md`](DESIGN.md) — architettura dettagliata, workflow, schema LanceDB
 - [`SPEC.md`](SPEC.md) — specifiche implementative, stati di errore, integrazione OpenClaw
 - [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
+
+---
+
+## Changelog
+
+### v1.1.0 — 2026-05-21
+
+**Novità: Iniezione di contesto pre-prompt**
+- `scripts/wiki_context.py` — nuovo script che esegue una ricerca vettoriale prima di ogni prompt e inietta un blocco `<wiki-context>`. Elimina l'instruction drift come failure mode: l'agente ha sempre il contesto wiki rilevante indipendentemente dalla classificazione dell'intent.
+- `skills/wiki-core.md` — nuova sezione `§injected-context`; checklist aggiornata per usare il blocco iniettato come priorità rispetto alle chiamate manuali a `wiki.py query`.
+- `AGENTS_PATCH.md` — aggiunta configurazione hook per Claude Code (`UserPromptSubmit`) e pre-hook OpenClaw.
+
+**Bug fix**
+- **[CRITICO]** `wiki_index.py`: `_build_full()` e `_build_slugs_only()` referenziavano `wiki_dir` come globale implicito — era una variabile locale del chiamante. Ogni chiamata a `rebuild_index()` (comandi INGEST, INDEX) crashava con `NameError`. Risolto passando `wiki_dir` come parametro esplicito.
+- **[MEDIO]** `wiki_workflows.py`: `cmd_index` scriveva `index.md` senza verificare che `wiki/` esistesse, causando `FileNotFoundError` su workspace nuovi. Risolto con `os.makedirs(wiki_dir, exist_ok=True)`.
+- **[BASSO]** `wiki_context.py`: il controllo "tabella vuota" caricava l'intera tabella LanceDB in un DataFrame pandas. Rimosso — i risultati di ricerca vuoti vengono già gestiti a valle.
 
 ---
 

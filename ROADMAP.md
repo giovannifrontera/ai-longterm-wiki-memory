@@ -4,6 +4,14 @@ Idee di sviluppo future, non ancora pianificate. Ordinate per priorità stimata.
 
 ---
 
+## [DONE] Pre-prompt context injection — v1.1.0
+
+**Stato:** Rilasciato in v1.1.0 (2026-05-21)
+
+`wiki_context.py` esegue una ricerca vettoriale prima di ogni prompt utente e inietta le pagine rilevanti come blocco `<wiki-context>`. Wiring come `UserPromptSubmit` hook (Claude Code) o pre-hook (OpenClaw). Vedi `AGENTS_PATCH.md`.
+
+---
+
 ## [PLANNED] MCP Scientific Database Integration
 
 **Stato:** In valutazione  
@@ -132,4 +140,4 @@ Per revisioni sistematiche: comando `wiki.py export --format prisma --workspace 
 
 ---
 
-*Aggiornato: 2026-05-20*
+*Aggiornato: 2026-05-21*

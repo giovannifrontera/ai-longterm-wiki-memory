@@ -6,6 +6,7 @@
 
 Give your AI agent a wiki it actually maintains — not a flat note dump, but a structured, self-healing knowledge base where every page is simultaneously a readable document and a searchable vector.
 
+[![Version](https://img.shields.io/badge/version-1.1.0-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
@@ -106,6 +107,24 @@ When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds
 ### Token-budget index
 `index.md` respects a configurable token budget (default 4000). When exceeded, it applies reduction strategies automatically — so the agent can navigate the wiki even on small context windows.
 
+### Pre-prompt context injection *(v1.1)*
+`wiki_context.py` runs a vector search **before every user message reaches the agent** and prepends a `<wiki-context>` block with the most relevant pages. This eliminates the main failure mode of skill-based approaches: instruction drift causing the agent to skip the wiki entirely on non-QUERY intents.
+
+```
+User types a message
+        │
+        ▼
+wiki_context.py runs vector search
+        │
+        ▼
+<wiki-context> block prepended to the prompt
+        │
+        ▼
+Agent always has relevant context — regardless of intent classification
+```
+
+Wire it as a `UserPromptSubmit` hook (Claude Code) or a pre-hook (OpenClaw). See [`AGENTS_PATCH.md`](AGENTS_PATCH.md) for exact configuration. The script always exits 0 — it never blocks a prompt.
+
 ---
 
 ## Architecture
@@ -118,6 +137,7 @@ workspace/
 ├── wiki.config.json          ← configuration
 ├── scripts/
 │   ├── wiki.py               ← unified CLI entry point
+│   ├── wiki_context.py       ← pre-prompt context injector (hook)
 │   ├── wiki_embed.py         ← boundary-aware chunking + bge-m3 embeddings
 │   ├── wiki_lancedb.py       ← LanceDB ops (upsert, staging, rename detection)
 │   └── wiki_index.py         ← token-budget index generation
@@ -182,6 +202,26 @@ The second line forces the agent to reload the rules before acting — not just 
 py scripts/wiki.py rebuild --workspace /path/to/your/workspace
 ```
 
+**5. (Recommended) Wire context injection**
+
+See [`AGENTS_PATCH.md`](AGENTS_PATCH.md) for the full hook configuration. Quick version for Claude Code — add to `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "py /ABSOLUTE/PATH/scripts/wiki_context.py --workspace /ABSOLUTE/PATH/workspace --q \"$CLAUDE_USER_PROMPT\" --k 3"
+      }]
+    }]
+  }
+}
+```
+
+This makes the agent consult the wiki on **every** prompt — not only when it classifies the message as a QUERY.
+
 ### What the agent does automatically
 
 | User says | Agent does |
@@ -228,6 +268,7 @@ Karpathy's core insight: instead of re-deriving knowledge on every query (classi
 | **Index management** | Manual `index.md` maintained by agent | Token-budget `index.md` generated on-demand |
 | **Rename detection** | Not addressed | Content-hash comparison → path update without re-embedding |
 | **Languages** | English-focused | Multilingual — bge-m3 supports 100+ languages |
+| **Context injection** | Not addressed | `wiki_context.py` pre-injects relevant pages before every prompt |
 | **Testing** | None | 37 automated tests |
 
 ### Key architectural differences
@@ -301,6 +342,13 @@ wiki.py <command> [arguments]
   index          --workspace <path>
   rebuild        --workspace <path>
   session-update --workspace <path> --op <type> --status <ok|failed|in-progress> [--detail <json>]
+
+wiki_context.py [hook — outputs <wiki-context> block to stdout]
+
+  --workspace    <path>    workspace containing wiki.config.json
+  --q            <string>  query text (the user's prompt)
+  --k            <int>     number of pages to return (default: 3)
+  --max-chars    <int>     max characters per page excerpt (default: 600)
 ```
 
 Every command outputs JSON to stdout:
@@ -344,6 +392,22 @@ Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` mo
 | [`skills/wiki-core.md`](skills/wiki-core.md) | The skill file to install in your agent |
 | [`AGENTS_PATCH.md`](AGENTS_PATCH.md) | Exact text to add to your `AGENTS.md` |
 | [`README.it.md`](README.it.md) | Documentazione in italiano |
+
+---
+
+## Changelog
+
+### v1.1.0 — 2026-05-21
+
+**New: Pre-prompt context injection**
+- `scripts/wiki_context.py` — new script that runs a vector search before every prompt and prepends a `<wiki-context>` block. Eliminates instruction drift as a failure mode: the agent always has relevant wiki context regardless of intent classification.
+- `skills/wiki-core.md` — new `§injected-context` section; checklist updated to prioritize the pre-injected block over manual `wiki.py query` calls.
+- `AGENTS_PATCH.md` — added hook configuration for Claude Code (`UserPromptSubmit`) and OpenClaw pre-hooks.
+
+**Bug fixes**
+- **[CRITICAL]** `wiki_index.py`: `_build_full()` and `_build_slugs_only()` referenced `wiki_dir` as an implicit global — a local variable from the caller. Every call to `rebuild_index()` (INGEST, INDEX commands) crashed with `NameError`. Fixed by adding `wiki_dir` as an explicit parameter.
+- **[MEDIUM]** `wiki_workflows.py`: `cmd_index` wrote `index.md` without ensuring `wiki/` existed, causing `FileNotFoundError` on fresh workspaces. Fixed with `os.makedirs(wiki_dir, exist_ok=True)`.
+- **[LOW]** `wiki_context.py`: emptiness check loaded the entire LanceDB table into a pandas DataFrame. Removed — empty search results are already handled downstream.
 
 ---
 
