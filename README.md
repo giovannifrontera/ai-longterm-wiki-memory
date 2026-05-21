@@ -8,7 +8,7 @@ Give your AI agent a wiki it actually maintains — not a flat note dump, but a 
 
 [![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
 [Getting Started](#getting-started) · [OpenClaw Integration](#openclaw-integration) · [How It Works](#how-it-works) · [Documentation](#documentation)
@@ -318,7 +318,7 @@ Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` mo
 
 ## License
 
-MIT — free to use, modify, and integrate in your own AI agent setups.
+AGPL-3.0 — requires anyone who distributes or runs the software as a service to share the source code.
 
 ---
 
