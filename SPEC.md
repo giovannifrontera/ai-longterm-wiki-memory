@@ -1,5 +1,5 @@
 # AI Wiki System — Spec di Implementazione
-> Co-progettato da AI Agent & Gio — Revisionato da Claude Code — 2026-05-20
+> Revisionato da Claude Code — 2026-05-20
 
 ---
 
@@ -87,11 +87,11 @@ Agent esegue questa checklist per ogni messaggio prima di procedere:
 
 ```
 1. Leggi wiki-session.md → verifica status (ok / in-progress / needs-repair)
-2. Se status ≠ ok → avvisa Gio prima di qualsiasi operazione
+2. Se status ≠ ok → avvisa l'utente prima di qualsiasi operazione
 3. Classifica l'intent del messaggio (vedi §classificazione)
 4. Il messaggio contiene più di un intent? Se sì, gestiscili in sequenza
 5. Emetti riga di classificazione: [INTENT: X | WORKSPACE: Y | CERTEZZA: alta/media/bassa]
-6. Se CERTEZZA = bassa → chiedi conferma a Gio prima di procedere
+6. Se CERTEZZA = bassa → chiedi conferma all'utente prima di procedere
 7. Esegui il workflow corrispondente all'intent
 ```
 
@@ -112,7 +112,7 @@ Agent esegue questa checklist per ogni messaggio prima di procedere:
 1. Leggi `wiki.config.json` → lista progetti con keywords
 2. Conta match tra parole chiave del messaggio e keywords di ogni progetto
 3. Se un progetto ha chiaramente più match → selezionalo
-4. Se pareggio tra due progetti → chiedi a Gio
+4. Se pareggio tra due progetti → chiedi all'utente
 5. Se nessun match → usa `wiki/` principale
 
 ### Output di classificazione (sempre visibile prima di agire)
@@ -121,7 +121,7 @@ Agent esegue questa checklist per ogni messaggio prima di procedere:
 [INTENT: INGEST | WORKSPACE: trading | CERTEZZA: alta]
 ```
 
-Gio può correggere questa riga prima che Agent esegua qualsiasi operazione.
+L'utente può correggere questa riga prima che Agent esegua qualsiasi operazione.
 
 ---
 
@@ -148,7 +148,7 @@ Dettaglio: <output sintetico>
 Pagine totali: N | Ultimo lint: YYYY-MM-DD
 ```
 
-**Robustezza:** il campo `status: in-progress` viene scritto all'inizio di ogni operazione, `status: ok` solo al termine. Un crash lascia `in-progress` → Agent lo rileva alla sessione successiva e avvisa Gio.
+**Robustezza:** il campo `status: in-progress` viene scritto all'inizio di ogni operazione, `status: ok` solo al termine. Un crash lascia `in-progress` → Agent lo rileva alla sessione successiva e avvisa l'utente.
 
 ---
 
@@ -177,7 +177,7 @@ Ogni comando produce JSON su stdout:
 { "status": "conflict", "level": 3, "page": "...", "detail": "..." }
 ```
 
-Agent legge questo output e lo presenta a Gio in linguaggio naturale.
+Agent legge questo output e lo presenta all'utente in linguaggio naturale.
 
 ### Lock file
 
@@ -187,7 +187,7 @@ Se `.wiki-lock` esiste all'avvio → output:
 ```json
 { "status": "error", "code": "lock_exists", "message": "Operazione precedente non conclusa", "recoverable": true }
 ```
-Agent avvisa Gio e non procede.
+Agent avvisa l'utente e non procede.
 
 ### Validazione config
 
@@ -282,7 +282,7 @@ Index: `(path, chunk_id) UNIQUE`, `vector ANN (HNSW)`.
 
 ## 8. §error-states — Stati invalidi e recovery
 
-| Stato | Segnale | Azione automatica | Intervento Gio |
+| Stato | Segnale | Azione automatica | Intervento utente |
 |-------|---------|-------------------|----------------|
 | `.wiki-lock` presente | Lock file esiste | Agent avvisa, non procede | Conferma se procedere |
 | `.tmp` su disco senza lock | Ingest interrotto | `wiki.py` cancella `.tmp`, rollback staging, log `ingest-failed` | No |
@@ -294,7 +294,7 @@ Index: `(path, chunk_id) UNIQUE`, `vector ANN (HNSW)`.
 | Conflitto Livello 3 | `conflicts: [{level: 3}]` | Agent presenta conflitto, blocca merge pagina specifica | Decide versione canonica |
 | Skill `wiki-core.md` non caricata | Agent non emette riga `[INTENT:]` | — | Verificare `<workspace>/skills/` |
 
-**Principio:** `wiki.py` non lascia mai il sistema in uno stato silenziosamente corrotto. Ogni anomalia produce un codice errore JSON specifico. Agent non inventa recovery — segue questa tabella o chiede a Gio.
+**Principio:** `wiki.py` non lascia mai il sistema in uno stato silenziosamente corrotto. Ogni anomalia produce un codice errore JSON specifico. Agent non inventa recovery — segue questa tabella o chiede all'utente.
 
 ---
 
@@ -321,8 +321,8 @@ Correzioni specifiche al DESIGN.md v2 incorporate in questo spec:
 - §lancedb-schema: upsert opera su tutti i chunk del path, non solo chunk_id=0
 - §mini-lint: aggiunto campo `status` in wiki-session.md per rilevamento crash
 - Log: aggiunti tipi `rebuild-lancedb`, `promote`, `rename`, `session-repair`
-- Conflict Livello 3: il blocco parziale avviene trattenendo la pagina in staging (non promossa) fino a risposta di Gio
+- Conflict Livello 3: il blocco parziale avviene trattenendo la pagina in staging (non promossa) fino a risposta dell'utente
 
 ---
 
-*Spec v1 — 2026-05-20 — Co-progettato da AI Agent & Gio — Redatto da Claude Code*
+*Spec v1 — 2026-05-20 — Redatto da Claude Code*

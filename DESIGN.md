@@ -2,7 +2,7 @@
 
 > Basato sul pattern di Andrej Karpathy (llm-wiki), adattato per CLI Linux, autonomo,
 > con topologia semantica a embedding vettoriali bge-m3 e LanceDB.
-> Co-progettato da AI Agent & Gio — 2026-05-19.
+> 2026-05-19.
 
 ---
 
@@ -72,7 +72,7 @@ Per `wiki/` principale, seed opzionale: crea `entities/Agent-nyx.md` e
 
 ### 1. INGEST — Acquisizione con atomicità
 
-Gio dice il **cosa**. Agent fa il **come**, in modo atomico e verificabile.
+L'utente dice il **cosa**. Agent fa il **come**, in modo atomico e verificabile.
 
 #### Fase A — Ricerca e Filtro (leggi-only, nessuna scrittura)
 
@@ -100,7 +100,7 @@ e) Se CHECKPOINT fallisce:
    - Cancella tutti i .tmp
    - Cancella staging_wiki_pages
    - Log entry: ## [DATA] ingest-failed | <motivo>
-   - Notifica Gio con errore specifico
+   - Notifica l'utente con errore specifico
 ```
 
 #### Fase C — Report
@@ -123,7 +123,7 @@ e) Se CHECKPOINT fallisce:
 
 ### 3. LINT — Manutenzione (completo)
 
-**Quando**: su richiesta di Gio, o proattivamente ogni 2 settimane.
+**Quando**: su richiesta dell'utente, o proattivamente ogni 2 settimane.
 **Mini-lint automatico**: dopo ogni INGEST (sottoinsieme leggero — vedi §mini-lint).
 
 ```
@@ -148,7 +148,7 @@ Per ogni problema trovato, LINT non solo segnala — **risolve**:
 | Vettore stale | Re-embedda immediatamente |
 | Pagina non embedded | Embedda |
 | Entry LanceDB orfana | Cancella entry |
-| Broken link | Segnala in log, propone fix a Gio |
+| Broken link | Segnala in log, propone fix all'utente |
 | Duplicati (similarity > 0.95) | Propone merge con draft della pagina unificata |
 | Orfani semantici | Aggiunge sezione "Vedi anche" con 3 vicini più prossimi |
 | Chunk stale | Rechunka e re-embedda |
@@ -168,7 +168,7 @@ MINI-LINT (sottoinsieme fast):
 □ Nessun .tmp rimasto su disco?
 ```
 
-Se mini-lint fallisce → log entry `## [DATA] mini-lint-failed | <dettaglio>` e notifica Gio.
+Se mini-lint fallisce → log entry `## [DATA] mini-lint-failed | <dettaglio>` e notifica l'utente.
 Non fa rollback (l'ingest è già committato) ma marca lo stato come "da riparare".
 
 ---
@@ -184,7 +184,7 @@ e almeno uno dei criteri opzionali:
 - Aggiunge inferenza che non sta letteralmente in nessuna fonte singola
 
 **Criteri opzionali (≥ 1):**
-- Risponde a una domanda che Gio ha posto esplicitamente
+- Risponde a una domanda che l'utente ha posto esplicitamente
 - Risolve una contraddizione tra pagine esistenti
 - Connette concetti di domini diversi (cross-wiki)
 - È probabile che venga riusata in future query (giudizio di Agent)
@@ -364,18 +364,18 @@ l'affermazione ¬P in una pagina esistente:
 **Livello 1 — Conflitto datato** (una fonte è più recente):
 - Azione: aggiorna la pagina wiki con l'informazione più recente
 - Mantieni nota: `> ⚠️ Aggiornato: [vecchia affermazione] → [nuova]. Fonte: [link]. Data: YYYY-MM-DD`
-- Nessun intervento di Gio necessario
+- Nessun intervento dell'utente necessario
 
 **Livello 2 — Conflitto di interpretazione** (entrambe le fonti sono valide ma in disaccordo):
 - Azione: crea sezione `## Prospettive in conflitto` nella pagina
 - Presenta entrambe le posizioni con fonte e score qualità
 - Aggiungi alla pagina il tag frontmatter `status: contested`
-- Nessun intervento di Gio necessario
+- Nessun intervento dell'utente necessario
 
 **Livello 3 — Conflitto fondamentale** (impossibile riconciliare, impatto alto):
 - Azione: crea synthesis page dedicata `conflicts/titolo-conflitto.md`
 - Riassumi entrambe le posizioni, analizza le implicazioni
-- Segnala a Gio nel report finale con domanda specifica: "Quale versione consideri canonica?"
+- Segnala all'utente nel report finale con domanda specifica: "Quale versione consideri canonica?"
 - Blocca il merge della nuova affermazione nelle pagine di riferimento fino a risposta
 
 **Rilevamento**: durante l'ingest, dopo aver letto la nuova fonte e prima di scrivere,
@@ -461,7 +461,7 @@ Definisce per ogni wiki:
 - **Fuso**: pagine di valore permanente migrate in `wiki/` via INGEST atomico
 
 **Criteri per fusione in wiki/**: pagina in wiki-works che è stata citata in ≥ 3 query
-distinte, o che Gio esplicitamente promuove, o che il LINT identifica come ponte tra
+distinte, o che l'utente esplicitamente promuove, o che il LINT identifica come ponte tra
 più progetti.
 
 ---
@@ -531,4 +531,4 @@ Index: vector ANN (HNSW)
 
 ---
 
-*v2 — 2026-05-19 — Co-progettato da AI Agent & Gio — Revisionato da Claude Code*
+*v2 — 2026-05-19 — Revisionato da Claude Code*

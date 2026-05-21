@@ -1622,12 +1622,12 @@ Prima di rispondere a qualsiasi messaggio:
 
 ```
 1. Leggi wiki-session.md → controlla il campo "status"
-2. Se status = "in-progress" o "needs-repair" → avvisa Gio PRIMA di qualsiasi altra cosa
+2. Se status = "in-progress" o "needs-repair" → avvisa l'utente PRIMA di qualsiasi altra cosa
 3. Classifica l'intent del messaggio (vedi §classificazione)
 4. Il messaggio contiene più di un intent? Se sì, gestiscili in sequenza, uno alla volta
 5. Emetti la riga di classificazione:
    [INTENT: X | WORKSPACE: Y | CERTEZZA: alta/media/bassa]
-6. Se CERTEZZA = bassa → chiedi conferma a Gio con UNA sola riga
+6. Se CERTEZZA = bassa → chiedi conferma all'utente con UNA sola riga
 7. Se CERTEZZA = alta o media → procedi con il workflow
 ```
 
@@ -1648,7 +1648,7 @@ Prima di rispondere a qualsiasi messaggio:
 1. Leggi `wiki.config.json` → lista `projects` con keywords
 2. Conta match tra parole chiave del messaggio e keywords di ogni progetto
 3. Progetto con più match → selezionato
-4. Se pareggio tra due progetti → chiedi a Gio (una riga)
+4. Se pareggio tra due progetti → chiedi all'utente (una riga)
 5. Se nessun match → usa `wiki/` principale
 
 ## §ingest — Workflow INGEST
@@ -1673,8 +1673,8 @@ Esegui questi passi nell'ordine esatto:
      --pages <p1.tmp,p2.tmp,...> \
      --log "ingest | <titolo>"
    ```
-3. Leggi l'output JSON → se `status: error` → avvisa Gio con il messaggio
-4. Se `mini_lint: failed` → avvisa Gio
+3. Leggi l'output JSON → se `status: error` → avvisa l'utente con il messaggio
+4. Se `mini_lint: failed` → avvisa l'utente
 
 **Fase C — Report:**
 Riassumi in chat: fonti usate, pagine create, conflitti risolti.
@@ -1700,9 +1700,9 @@ Riassumi in chat: fonti usate, pagine create, conflitti risolti.
 py scripts/wiki.py lint --workspace <path> --full
 ```
 
-Leggi il JSON di output e presenta i problemi trovati a Gio.
+Leggi il JSON di output e presenta i problemi trovati all'utente.
 Il lint risolve automaticamente: entry orfane, rename, vettori stale.
-Per broken links e duplicati: presenta le opzioni a Gio.
+Per broken links e duplicati: presenta le opzioni all'utente.
 
 ## §regola-synthesis — Quando creare una pagina wiki
 
@@ -1720,7 +1720,7 @@ Crea una pagina wiki SOLO se soddisfa **tutti** questi criteri:
 
 - All'inizio di ogni sessione: leggi `wiki-session.md`
 - Non modificare mai `wiki-session.md` direttamente: usa sempre `wiki.py session-update`
-- Se trovi `status: in-progress`: avvisa Gio prima di qualsiasi operazione
+- Se trovi `status: in-progress`: avvisa l'utente prima di qualsiasi operazione
 ```
 
 - [ ] **Step 3: Commit**
