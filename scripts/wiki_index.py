@@ -70,7 +70,7 @@ def _collect_pages(wiki_dir: str) -> dict:
     return categories
 
 
-def _build_full(categories: dict, now: str, total: int) -> str:
+def _build_full(categories: dict, now: str, total: int, wiki_dir: str) -> str:
     lines = [f"# Index — {Path(wiki_dir).name}", f"_Generato: {now} — {total} pagine_", ""]
     for cat, pages in categories.items():
         if not pages:
@@ -85,7 +85,7 @@ def _build_full(categories: dict, now: str, total: int) -> str:
     return "\n".join(lines)
 
 
-def _build_slugs_only(categories: dict, now: str, total: int) -> str:
+def _build_slugs_only(categories: dict, now: str, total: int, wiki_dir: str) -> str:
     lines = [f"# Index — {Path(wiki_dir).name}", f"_Generato: {now} — {total} pagine_", ""]
     for cat, pages in categories.items():
         if not pages:
@@ -103,11 +103,11 @@ def rebuild_index(wiki_dir: str, token_budget: int = 4000) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     total = sum(len(v) for v in categories.values())
 
-    content = _build_full(categories, now, total)
+    content = _build_full(categories, now, total, wiki_dir)
     if _approx_tokens(content) <= token_budget:
         return content
 
-    content = _build_slugs_only(categories, now, total)
+    content = _build_slugs_only(categories, now, total, wiki_dir)
     if _approx_tokens(content) <= token_budget:
         return content
 

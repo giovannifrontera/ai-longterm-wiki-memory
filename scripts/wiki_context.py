@@ -81,9 +81,6 @@ def _run(args):
         return
 
     table = db.open_table("wiki_pages")
-    if table.to_pandas().empty:
-        return
-
     model = SentenceTransformer(cfg["lancedb"]["embedding_model"])
     vector = model.encode(args.q, normalize_embeddings=True).tolist()
 

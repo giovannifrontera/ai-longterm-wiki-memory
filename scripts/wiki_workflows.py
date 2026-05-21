@@ -130,6 +130,7 @@ def cmd_query(args, cfg):
 
 def cmd_index(args, cfg):
     wiki_dir = os.path.join(args.workspace, "wiki")
+    os.makedirs(wiki_dir, exist_ok=True)
     idx_content = rebuild_index(wiki_dir, cfg["thresholds"]["index_token_budget"])
     Path(wiki_dir, "index.md").write_text(idx_content, encoding="utf-8")
     ok({"op": "index", "wiki_dir": wiki_dir})
