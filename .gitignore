@@ -4,3 +4,9 @@ __pycache__/
 memory/lancedb/
 *.tmp
 .wiki-lock
+
+# plugin build artifacts
+plugins/wiki-context-plugin/node_modules/
+plugins/wiki-context-plugin/dist/
+plugins/wiki-context-plugin/index.js
+plugins/wiki-context-plugin/*.d.ts

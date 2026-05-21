@@ -9,9 +9,10 @@ export default definePluginEntry({
     "Runs wiki_context.py before every prompt and prepends relevant wiki pages as <wiki-context> block.",
 
   register(api) {
-    const cfg = api.getConfig() as {
-      workspace: string;
-      wikiContextScript: string;
+    // OpenClaw exposes plugin config as api.config (not api.getConfig())
+    const cfg = ((api as Record<string, unknown>).config ?? {}) as {
+      workspace?: string;
+      wikiContextScript?: string;
       pythonExecutable?: string;
       k?: number;
       maxChars?: number;
@@ -25,9 +26,12 @@ export default definePluginEntry({
       return;
     }
 
-    if (!existsSync(cfg.wikiContextScript)) {
+    const workspace = cfg.workspace;
+    const wikiContextScript = cfg.wikiContextScript;
+
+    if (!existsSync(wikiContextScript)) {
       console.warn(
-        `[wiki-context-plugin] wiki_context.py not found at: ${cfg.wikiContextScript}`
+        `[wiki-context-plugin] wiki_context.py not found at: ${wikiContextScript}`
       );
       return;
     }
@@ -57,8 +61,8 @@ export default definePluginEntry({
           const output = execFileSync(
             python,
             [
-              cfg.wikiContextScript,
-              "--workspace", cfg.workspace,
+              wikiContextScript,
+              "--workspace", workspace,
               "--q", userText,
               "--k", k,
               "--max-chars", maxChars,

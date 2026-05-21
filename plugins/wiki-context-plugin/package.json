@@ -5,7 +5,7 @@
   "description": "OpenClaw plugin — injects wiki context before every prompt via before_prompt_build hook",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').copyFileSync('dist/index.js','index.js')\"",
     "dev": "tsc --watch"
   },
   "openclaw": {

@@ -2,6 +2,7 @@
   "id": "wiki-context-plugin",
   "name": "Wiki Context Injector",
   "description": "Injects relevant wiki pages into every prompt via before_prompt_build. Requires wiki_context.py from ai-wiki-system.",
+  "main": "index.js",
   "contracts": {
     "tools": [],
     "hooks": ["before_prompt_build"]

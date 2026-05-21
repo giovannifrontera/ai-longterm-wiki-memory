@@ -123,7 +123,7 @@ wiki_context.py runs vector search
 Agent always has relevant context — regardless of intent classification
 ```
 
-Wire it as a `UserPromptSubmit` hook (Claude Code) or a `before_prompt_build` TypeScript plugin (OpenClaw). See [`AGENTS_PATCH.md`](AGENTS_PATCH.md) for exact configuration. The script always exits 0 — it never blocks a prompt.
+Wire it as a `UserPromptSubmit` hook (Claude Code) or a `before_prompt_build` TypeScript plugin (OpenClaw) — see the [OpenClaw Integration](#openclaw-integration) section for setup. The script always exits 0 — it never blocks a prompt.
 
 ---
 
@@ -204,18 +204,43 @@ py scripts/wiki.py rebuild --workspace /path/to/your/workspace
 
 **5. (Recommended) Wire context injection**
 
-See [`AGENTS_PATCH.md`](AGENTS_PATCH.md) for the full hook configuration. Quick version for Claude Code — add to `.claude/settings.json`:
+> **Why this matters:** without context injection, the agent only queries the wiki when it
+> classifies your message as a QUERY intent. With it, every prompt arrives pre-loaded with
+> the most relevant wiki pages — regardless of intent.
 
+**Claude Code** — one command:
+
+```bash
+py scripts/install_claude_hook.py --workspace /absolute/path/to/workspace
+```
+
+This writes the `UserPromptSubmit` hook into `.claude/settings.json` automatically.
+It is idempotent — safe to re-run. Restart Claude Code to activate.
+
+Options: `--k 5` (more pages), `--python python3` (non-Windows), `--dry-run` (preview only).
+
+**OpenClaw** — build and install the included plugin:
+
+```bash
+cd plugins/wiki-context-plugin
+npm install
+npm run build
+openclaw plugins install local:./plugins/wiki-context-plugin
+```
+
+Add the plugin to `plugins.allow` in the OpenClaw gateway config and restart:
+```json
+{ "plugins": { "allow": ["wiki-context-plugin"] } }
+```
+
+Configure in OpenClaw plugin settings:
 ```json
 {
-  "hooks": {
-    "UserPromptSubmit": [{
-      "matcher": "",
-      "hooks": [{
-        "type": "command",
-        "command": "py /ABSOLUTE/PATH/scripts/wiki_context.py --workspace /ABSOLUTE/PATH/workspace --q \"$CLAUDE_USER_PROMPT\" --k 3"
-      }]
-    }]
+  "wiki-context-plugin": {
+    "workspace": "/absolute/path/to/workspace",
+    "wikiContextScript": "/absolute/path/to/ai-wiki-system/scripts/wiki_context.py",
+    "pythonExecutable": "python",
+    "k": 3
   }
 }
 ```
@@ -397,12 +422,26 @@ Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` mo
 
 ## Changelog
 
+### v1.1.1 — 2026-05-21
+
+**New: Claude Code hook installer**
+- `scripts/install_claude_hook.py` — one-command installer that writes the `UserPromptSubmit` hook into `.claude/settings.json`. Auto-detects the Python executable (`py` on Windows, `python3` on Unix), idempotent, supports `--dry-run`. Equivalent to OpenClaw's plugin-based install experience.
+
+**Bug fixes — OpenClaw plugin (`plugins/wiki-context-plugin/`)**
+
+- **[CRITICAL]** `src/index.ts`: `api.getConfig()` does not exist in the OpenClaw SDK — calling it threw an uncaught error that crashed the gateway on startup. Fixed by reading config from `api.config` (property access) with a graceful fallback to `{}`. Missing config now logs a warning and returns cleanly instead of crashing.
+- **[HIGH]** `tsconfig.json` / `package.json`: `outDir` was `dist/`, but OpenClaw resolves the entry point relative to the manifest directory, not `dist/`. The `build` script now runs `tsc` then copies `dist/index.js` to the plugin root via a Node.js one-liner (cross-platform). Module system updated to `module: Node16` + `moduleResolution: Node16` for Node.js runtime compatibility.
+- **[MEDIUM]** `openclaw.plugin.json`: added `"main": "index.js"` for forward compatibility with OpenClaw versions that read the entry point from the manifest.
+- **Installation note:** after `npm run build`, the plugin must be added to `plugins.allow` in the OpenClaw gateway configuration before it becomes active. See the setup section above.
+
+---
+
 ### v1.1.0 — 2026-05-21
 
 **New: Pre-prompt context injection**
 - `scripts/wiki_context.py` — new script that runs a vector search before every prompt and prepends a `<wiki-context>` block. Eliminates instruction drift as a failure mode: the agent always has relevant wiki context regardless of intent classification.
 - `skills/wiki-core.md` — new `§injected-context` section; checklist updated to prioritize the pre-injected block over manual `wiki.py query` calls.
-- `AGENTS_PATCH.md` — added hook configuration for Claude Code (`UserPromptSubmit`) and OpenClaw (`before_prompt_build` plugin).
+- `AGENTS_PATCH.md` — added agent behavioral instructions for wiki context injection (`§injected-context` usage rules).
 - `plugins/wiki-context-plugin/` — ready-to-use TypeScript plugin for OpenClaw.
 
 **Bug fixes**
