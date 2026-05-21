@@ -98,7 +98,12 @@ def _build_slugs_only(categories: dict, now: str, total: int, wiki_dir: str) -> 
 
 
 def rebuild_index(wiki_dir: str, token_budget: int = 4000) -> str:
-    """Genera e ritorna il contenuto di index.md. Non scrive su disco."""
+    """Genera e ritorna il contenuto di index.md.
+
+    Strategia 1 e 2: solo return, nessuna scrittura su disco.
+    Strategia 3 (budget superato): scrive anche index-{cat}.md in wiki_dir
+    come effetto collaterale, poi ritorna il contenuto dell'index principale.
+    """
     categories = _collect_pages(wiki_dir)
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     total = sum(len(v) for v in categories.values())

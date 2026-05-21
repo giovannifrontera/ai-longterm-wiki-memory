@@ -27,7 +27,7 @@ def get_db(lancedb_path: str):
 
 
 def ensure_table(db, table_name: str = "wiki_pages"):
-    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    existing = db.list_tables().tables
     if table_name not in existing:
         db.create_table(table_name, schema=SCHEMA)
     return db.open_table(table_name)
@@ -59,7 +59,7 @@ def upsert(db, path: str, chunks: list[dict], table_name: str = "wiki_pages") ->
 
 def promote_staging(db) -> None:
     """Promuove staging_wiki_pages → wiki_pages e svuota staging."""
-    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    existing = db.list_tables().tables
     if "staging_wiki_pages" not in existing:
         return
     staging = db.open_table("staging_wiki_pages")
@@ -84,7 +84,7 @@ def promote_staging(db) -> None:
 
 def rollback_staging(db) -> None:
     """Svuota staging senza toccare wiki_pages."""
-    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    existing = db.list_tables().tables
     if "staging_wiki_pages" not in existing:
         return
     try:

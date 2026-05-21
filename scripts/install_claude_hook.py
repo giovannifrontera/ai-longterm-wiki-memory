@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -62,6 +63,9 @@ def main() -> None:
     if not workspace.exists():
         print(f"ERROR: workspace not found: {workspace}", file=sys.stderr)
         sys.exit(1)
+    if not (workspace / "wiki.config.json").exists():
+        print(f"WARNING: wiki.config.json not found in {workspace}.", file=sys.stderr)
+        print("The hook will fail silently until wiki.config.json is created.", file=sys.stderr)
 
     # Resolve script path
     if args.script:
@@ -122,9 +126,18 @@ def main() -> None:
         return
 
     settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settings_path, "w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
+    fd, tmp_path = tempfile.mkstemp(dir=settings_path.parent, prefix=".settings.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+            f.write("\n")
+        os.replace(tmp_path, settings_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
     print(f"Hook installed in {settings_path}")
     print(f"  workspace : {workspace_str}")

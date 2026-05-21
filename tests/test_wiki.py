@@ -72,7 +72,8 @@ def test_ingest_workflow_ok(tmp_workspace):
 
 
 def test_ingest_fails_if_lock_exists(tmp_workspace):
-    (tmp_workspace / ".wiki-lock").write_text("locked")
+    # Must write the current process's PID — acquire_lock treats non-alive PIDs as stale
+    (tmp_workspace / ".wiki-lock").write_text(str(os.getpid()))
     tmp_page = tmp_workspace / "wiki" / "concepts" / "x.md.tmp"
     tmp_page.write_text("# X\n")
     result = run_wiki(tmp_workspace, "ingest",

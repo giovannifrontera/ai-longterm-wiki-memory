@@ -62,6 +62,7 @@ def cmd_ingest(args, cfg):
     raw_paths = [p.strip() for p in args.pages.split(",")]
     tmp_paths = [p if os.path.isabs(p) else os.path.join(workspace, p) for p in raw_paths]
     final_paths = []
+    moved: list[tuple[str, str]] = []  # (tmp_path, final_path) spostati con successo
 
     try:
         for tmp_path in tmp_paths:
@@ -83,6 +84,7 @@ def cmd_ingest(args, cfg):
         for tmp_path, final_path in final_paths:
             os.makedirs(os.path.dirname(final_path), exist_ok=True)
             shutil.move(tmp_path, final_path)
+            moved.append((tmp_path, final_path))
 
         promote_staging(db)
 
@@ -105,7 +107,13 @@ def cmd_ingest(args, cfg):
 
     except Exception as e:
         rollback_staging(db)
-        # I .tmp rimangono su disco: l'agente può correggere l'errore e reingestare
+        # Ripristina i file già spostati prima dell'errore
+        for tmp_p, final_p in moved:
+            try:
+                if os.path.exists(final_p):
+                    shutil.move(final_p, tmp_p)
+            except OSError:
+                pass
         pending = [tp for tp in tmp_paths if os.path.exists(tp)]
         _write_session(workspace, "ingest", "failed", {"error": str(e), "pending_tmp": pending})
         _append_log(workspace, "wiki", f"ingest-failed | {e} | pending: {len(pending)} file .tmp")
@@ -160,7 +168,7 @@ def cmd_rebuild(args, cfg):
     db = get_db(_lancedb_path(args.workspace, cfg))
     thresholds = cfg["thresholds"]
 
-    existing = db.table_names() if hasattr(db, 'table_names') else db.list_tables()
+    existing = db.list_tables().tables
     if "wiki_pages" in existing:
         db.drop_table("wiki_pages")
 
@@ -204,12 +212,20 @@ def cmd_lint(args, cfg):
             if not os.path.exists(full):
                 report.append({"type": "orphan_entry", "path": path})
                 try:
-                    table.delete(f"path = '{path.replace(chr(39), chr(39)*2)}'")
+                    safe = path.replace("'", "''")
+                    table.delete(f"path = '{safe}'")
                 except Exception:
                     pass
 
-        fs_paths = {str(p) for p in Path(args.workspace).rglob("*.md")
-                    if "raw" not in p.parts}
+        fs_paths = {
+            str(md_file)
+            for root_name in _WIKI_ROOTS
+            if (Path(args.workspace) / root_name).is_dir()
+            for md_file in (Path(args.workspace) / root_name).rglob("*.md")
+            if md_file.name not in EXCLUDED_NAMES
+            and "raw" not in md_file.parts
+            and ".archive" not in md_file.parts
+        }
         renames = detect_renames(db, fs_paths, args.workspace)
         for r in renames:
             report.append({"type": "rename_detected", **r})

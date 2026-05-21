@@ -33,10 +33,10 @@ def read_page(workspace: str, rel_path: str, max_chars: int) -> str:
         with open(abs_path, encoding="utf-8") as f:
             content = f.read()
         if len(content) > max_chars:
-            content = content[:max_chars].rstrip() + "\n[...troncato]"
+            content = content[:max_chars].rstrip() + "\n[...truncated]"
         return content
     except OSError:
-        return "[pagina non leggibile]"
+        return "[page not readable]"
 
 
 def main():
@@ -100,18 +100,18 @@ def _run(args):
 
     lines = ["<wiki-context>"]
     lines.append(
-        f"Contesto wiki pre-caricato (top {len(top)} pagine per rilevanza semantica):\n"
+        f"Pre-loaded wiki context (top {len(top)} pages by semantic relevance):\n"
     )
     for path, info in top:
         score = round(1.0 - info["dist"], 3)
         content = read_page(args.workspace, path, args.max_chars)
-        lines.append(f"### {path}  [rilevanza: {score}]")
+        lines.append(f"### {path}  [relevance: {score}]")
         lines.append(content)
         lines.append("")
     lines.append(
         "</wiki-context>\n"
-        "Usa il contesto sopra per rispondere, rilevare conflitti durante l'INGEST, "
-        "o disambiguare intent incerti. Non eseguire wiki.py query se il contesto è già sufficiente."
+        "Use the context above to inform your response, detect conflicts during INGEST, "
+        "or disambiguate uncertain intents. Do not run wiki.py query if this context is already sufficient."
     )
 
     print("\n".join(lines))

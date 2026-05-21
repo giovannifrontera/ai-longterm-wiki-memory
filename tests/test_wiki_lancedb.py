@@ -13,7 +13,7 @@ def make_chunks(path, n=1):
 def test_ensure_table_creates_table(tmp_workspace):
     db = get_db(str(tmp_workspace / "memory" / "lancedb"))
     ensure_table(db)
-    assert "wiki_pages" in db.table_names()
+    assert "wiki_pages" in db.list_tables().tables
 
 def test_upsert_adds_rows(tmp_workspace):
     db = get_db(str(tmp_workspace / "memory" / "lancedb"))
