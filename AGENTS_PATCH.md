@@ -56,18 +56,44 @@ On Windows you can use forward slashes (`/`) — Git Bash accepts both.
 faster thanks to sentence-transformers caching.
 For empty workspaces or uninitialised wikis, the script exits silently in <0.1s.
 
-### OpenClaw — pre-hook on the message
+### OpenClaw — `before_prompt_build` plugin
 
-In your OpenClaw agent configuration, add a pre-hook that runs:
+OpenClaw does not have a native shell pre-hook mechanism. Context injection requires
+a TypeScript plugin that registers the `before_prompt_build` hook.
+A ready-to-use plugin is included in this repo at `plugins/wiki-context-plugin/`.
+
+**Setup:**
 
 ```bash
-py /path/scripts/wiki_context.py \
-  --workspace /path/workspace \
-  --q "$MESSAGE_TEXT" \
-  --k 3
+cd plugins/wiki-context-plugin
+npm install
+npm run build
+openclaw plugins install local:./plugins/wiki-context-plugin
 ```
 
-The command output is prepended to the user message before it reaches the LLM.
+**Configure** in OpenClaw (plugin settings):
+
+```json
+{
+  "wiki-context-plugin": {
+    "workspace": "/absolute/path/to/workspace",
+    "wikiContextScript": "/absolute/path/to/ai-wiki-system/scripts/wiki_context.py",
+    "pythonExecutable": "python",
+    "k": 3,
+    "maxChars": 600
+  }
+}
+```
+
+The plugin calls `wiki_context.py` before every prompt and returns the output as
+`prependContext`, which OpenClaw inserts before the user message.
+It always fails silently — a timeout or empty wiki never blocks the prompt.
+
+> **Note on the event field name:** The exact TypeScript field that holds the user's
+> message text in the `before_prompt_build` event may vary by OpenClaw version. The
+> plugin tries `event.userMessage`, `event.prompt`, `event.currentPrompt`, and
+> `event.input` in order. If the wiki context is never injected, check the SDK types
+> in your `node_modules/openclaw` and update the field name in `src/index.ts`.
 
 ### Behaviour with injected context
 

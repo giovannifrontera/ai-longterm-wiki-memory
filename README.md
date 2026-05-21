@@ -123,7 +123,7 @@ wiki_context.py runs vector search
 Agent always has relevant context — regardless of intent classification
 ```
 
-Wire it as a `UserPromptSubmit` hook (Claude Code) or a pre-hook (OpenClaw). See [`AGENTS_PATCH.md`](AGENTS_PATCH.md) for exact configuration. The script always exits 0 — it never blocks a prompt.
+Wire it as a `UserPromptSubmit` hook (Claude Code) or a `before_prompt_build` TypeScript plugin (OpenClaw). See [`AGENTS_PATCH.md`](AGENTS_PATCH.md) for exact configuration. The script always exits 0 — it never blocks a prompt.
 
 ---
 
@@ -402,7 +402,8 @@ Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` mo
 **New: Pre-prompt context injection**
 - `scripts/wiki_context.py` — new script that runs a vector search before every prompt and prepends a `<wiki-context>` block. Eliminates instruction drift as a failure mode: the agent always has relevant wiki context regardless of intent classification.
 - `skills/wiki-core.md` — new `§injected-context` section; checklist updated to prioritize the pre-injected block over manual `wiki.py query` calls.
-- `AGENTS_PATCH.md` — added hook configuration for Claude Code (`UserPromptSubmit`) and OpenClaw pre-hooks.
+- `AGENTS_PATCH.md` — added hook configuration for Claude Code (`UserPromptSubmit`) and OpenClaw (`before_prompt_build` plugin).
+- `plugins/wiki-context-plugin/` — ready-to-use TypeScript plugin for OpenClaw.
 
 **Bug fixes**
 - **[CRITICAL]** `wiki_index.py`: `_build_full()` and `_build_slugs_only()` referenced `wiki_dir` as an implicit global — a local variable from the caller. Every call to `rebuild_index()` (INGEST, INDEX commands) crashed with `NameError`. Fixed by adding `wiki_dir` as an explicit parameter.

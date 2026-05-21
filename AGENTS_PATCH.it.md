@@ -56,18 +56,44 @@ Su Windows usa backslash o percorsi con `/` in stile Unix (Git Bash li accetta e
 successive sono più rapide grazie alla cache di sentence-transformers.
 Per workspace vuoti o wiki non inizializzati, lo script termina silenziosamente in <0.1s.
 
-### OpenClaw — pre-hook sul messaggio
+### OpenClaw — plugin `before_prompt_build`
 
-Nel file di configurazione del tuo agente OpenClaw, aggiungi un pre-hook che esegue:
+OpenClaw non ha un meccanismo nativo per script shell pre-messaggio. L'iniezione di
+contesto richiede un plugin TypeScript che registra l'hook `before_prompt_build`.
+Un plugin pronto all'uso è incluso in questo repo in `plugins/wiki-context-plugin/`.
+
+**Setup:**
 
 ```bash
-py /percorso/scripts/wiki_context.py \
-  --workspace /percorso/workspace \
-  --q "$MESSAGE_TEXT" \
-  --k 3
+cd plugins/wiki-context-plugin
+npm install
+npm run build
+openclaw plugins install local:./plugins/wiki-context-plugin
 ```
 
-L'output del comando viene prepended al messaggio utente prima che raggiunga l'LLM.
+**Configura** in OpenClaw (impostazioni plugin):
+
+```json
+{
+  "wiki-context-plugin": {
+    "workspace": "/percorso/assoluto/workspace",
+    "wikiContextScript": "/percorso/assoluto/ai-wiki-system/scripts/wiki_context.py",
+    "pythonExecutable": "python",
+    "k": 3,
+    "maxChars": 600
+  }
+}
+```
+
+Il plugin chiama `wiki_context.py` prima di ogni prompt e restituisce l'output come
+`prependContext`, che OpenClaw inserisce prima del messaggio utente.
+Fallisce sempre silenziosamente — un timeout o wiki vuoto non blocca mai il prompt.
+
+> **Nota sul nome del campo evento:** Il campo TypeScript esatto che contiene il testo
+> del messaggio utente nell'evento `before_prompt_build` può variare in base alla versione
+> di OpenClaw. Il plugin prova `event.userMessage`, `event.prompt`, `event.currentPrompt`
+> e `event.input` in ordine. Se il contesto wiki non viene mai iniettato, controlla i tipi
+> SDK in `node_modules/openclaw` e aggiorna il nome del campo in `src/index.ts`.
 
 ### Comportamento con il contesto iniettato
 

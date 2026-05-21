@@ -142,7 +142,7 @@ Blocco <wiki-context> iniettato nel prompt
 L'agente ha sempre il contesto rilevante — indipendentemente dalla classificazione dell'intent
 ```
 
-Si configura come hook `UserPromptSubmit` (Claude Code) o pre-hook (OpenClaw). Vedi [`AGENTS_PATCH.md`](AGENTS_PATCH.md) per la configurazione esatta. Lo script termina sempre con exit 0 — non blocca mai un prompt.
+Si configura come hook `UserPromptSubmit` (Claude Code) o plugin TypeScript `before_prompt_build` (OpenClaw). Vedi [`AGENTS_PATCH.md`](AGENTS_PATCH.md) per la configurazione esatta. Lo script termina sempre con exit 0 — non blocca mai un prompt.
 
 ---
 
@@ -260,7 +260,8 @@ Ogni comando produce JSON su stdout:
 **Novità: Iniezione di contesto pre-prompt**
 - `scripts/wiki_context.py` — nuovo script che esegue una ricerca vettoriale prima di ogni prompt e inietta un blocco `<wiki-context>`. Elimina l'instruction drift come failure mode: l'agente ha sempre il contesto wiki rilevante indipendentemente dalla classificazione dell'intent.
 - `skills/wiki-core.md` — nuova sezione `§injected-context`; checklist aggiornata per usare il blocco iniettato come priorità rispetto alle chiamate manuali a `wiki.py query`.
-- `AGENTS_PATCH.md` — aggiunta configurazione hook per Claude Code (`UserPromptSubmit`) e pre-hook OpenClaw.
+- `AGENTS_PATCH.md` — aggiunta configurazione hook per Claude Code (`UserPromptSubmit`) e plugin OpenClaw (`before_prompt_build`).
+- `plugins/wiki-context-plugin/` — plugin TypeScript pronto all'uso per OpenClaw.
 
 **Bug fix**
 - **[CRITICO]** `wiki_index.py`: `_build_full()` e `_build_slugs_only()` referenziavano `wiki_dir` come globale implicito — era una variabile locale del chiamante. Ogni chiamata a `rebuild_index()` (comandi INGEST, INDEX) crashava con `NameError`. Risolto passando `wiki_dir` come parametro esplicito.
