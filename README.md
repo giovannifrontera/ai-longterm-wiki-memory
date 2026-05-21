@@ -427,6 +427,15 @@ Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` mo
 **New: Claude Code hook installer**
 - `scripts/install_claude_hook.py` — one-command installer that writes the `UserPromptSubmit` hook into `.claude/settings.json`. Auto-detects the Python executable (`py` on Windows, `python3` on Unix), idempotent, supports `--dry-run`. Equivalent to OpenClaw's plugin-based install experience.
 
+**Bug fixes — Python core**
+
+- **[CRITICAL]** `wiki_lancedb.py`: `table_names()` is deprecated in the current LanceDB version and `list_tables()` returns a `ListTablesResponse` object, not a plain list. All table-existence checks used `table_name not in response`, which always evaluated to `True`, causing `create_table` to be called on every operation — crashing with "table already exists". Fixed by using `.list_tables().tables`.
+- **[HIGH]** `wiki_workflows.py` `cmd_ingest`: if `shutil.move` failed mid-loop (e.g., disk full, permission error), already-moved files were left on disk without their vectors in `wiki_pages`, creating silent orphans not rolled back by `rollback_staging`. Fixed by tracking moved pairs and reversing them on exception.
+- **[MEDIUM]** `wiki_workflows.py` `cmd_lint`: rename detection scanned the entire workspace with `rglob("*.md")`, including documentation, plugin files, and any other Markdown. Scoped to `wiki/` and `wiki-works/` with the same filters as `_wiki_md_files` (excludes `EXCLUDED_NAMES`, `raw/`, `.archive/`).
+- **[MEDIUM]** `install_claude_hook.py`: `settings.json` was written with a direct `open(..., "w")` — a crash mid-write would corrupt the file. Write is now atomic via `tempfile.mkstemp` + `os.replace`, matching the pattern used by `_write_session`.
+- **[LOW]** `install_claude_hook.py`: no validation that `--workspace` points to a wiki workspace. Now warns if `wiki.config.json` is absent.
+- **[LOW]** `wiki_context.py`: framing text in the `<wiki-context>` block was hardcoded Italian. Replaced with English (`relevance`, `truncated`, closing instructions).
+
 **Bug fixes — OpenClaw plugin (`plugins/wiki-context-plugin/`)**
 
 - **[CRITICAL]** `src/index.ts`: `api.getConfig()` does not exist in the OpenClaw SDK — calling it threw an uncaught error that crashed the gateway on startup. Fixed by reading config from `api.config` (property access) with a graceful fallback to `{}`. Missing config now logs a warning and returns cleanly instead of crashing.
