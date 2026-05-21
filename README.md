@@ -175,12 +175,59 @@ If the agent finds `in-progress` at session start, it warns before doing anythin
 
 ---
 
+---
+
+## Origins & Inspiration
+
+AI Wiki System is inspired by the **LLM Wiki Pattern** described by [Andrej Karpathy](https://karpathy.ai/) in his gist [*"llm-wiki: a pattern for persistent, LLM-maintained knowledge bases"*](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+
+Karpathy's core insight: instead of re-deriving knowledge on every query (classic RAG), an LLM should *maintain* a persistent wiki — a structured set of markdown files it builds, updates, and cross-references over time. The tedious part of maintaining a knowledge base is not the reading or the thinking — it's the bookkeeping. LLMs handle bookkeeping well; humans don't.
+
+### How this project differs
+
+| Dimension | Karpathy's pattern | AI Wiki System |
+|-----------|-------------------|----------------|
+| **Form** | Conceptual pattern — prose + guidelines | Full Python implementation with CLI |
+| **Retrieval** | Suggests optional BM25/vector (qmd) | Built-in semantic search: BAAI/bge-m3 (1024-dim, multilingual) + LanceDB |
+| **Crash safety** | Not addressed | Atomic `.tmp → staging → promotion` pipeline; detectable `in-progress` state on crash |
+| **Multi-project** | Single wiki | Routed workspaces via `wiki.config.json` keywords; workspace auto-selected from message content |
+| **Knowledge compounding** | Query answers stay in chat | Auto-synthesis: responses integrating ≥2 sources over 300 tokens are saved as new wiki pages |
+| **Lint** | Basic health check concept | 11-check self-healing lint: stale vectors, orphan entries, broken links, semantic duplicates (cosine > 0.95), staleness flags |
+| **Index management** | Manual `index.md` maintained by agent | Token-budget `index.md` generated on-demand from filesystem — no "index out of sync" class of bugs |
+| **Rename detection** | Not addressed | Content-hash comparison detects file renames; updates DB path without re-embedding |
+| **Agent integration** | CLAUDE.md / AGENTS.md schema file | Native OpenClaw integration with session-state tracking and intent classification protocol |
+| **Languages** | English-focused | Multilingual — bge-m3 supports 100+ languages natively |
+| **Testing** | None | 37 automated tests |
+
+### Key architectural differences
+
+**Two-level wiki** — Karpathy proposes a single wiki directory. AI Wiki System separates permanent curated knowledge (`wiki/`) from active project research (`wiki-works/<project>/`). Research noise never pollutes the stable knowledge base.
+
+**No direct agent writes** — The agent never writes to the wiki directly. Everything goes through `wiki.py`. The skill guides *when* and *why*; the scripts enforce *how*. This single invariant eliminates the class of corruption bugs where agents write partial or malformed pages.
+
+**JSON-first CLI** — All `wiki.py` commands emit structured JSON, making the system composable with other tools and scriptable in automated pipelines.
+
+---
+
 ## Getting Started
 
 ### Requirements
 
-- Python 3.10+
-- ~2 GB disk for bge-m3 model (downloaded on first use)
+**Python 3.10+** — required for modern type hints and structural pattern matching.
+
+**~2 GB disk** — for the BAAI/bge-m3 embedding model, downloaded automatically on first run via `sentence-transformers`.
+
+**Python dependencies** (`pip install -r requirements.txt`):
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `lancedb` | ≥ 0.6.0 | Vector database — stores and queries bge-m3 embeddings; provides the staging table for atomic ingest |
+| `sentence-transformers` | ≥ 3.0.0 | Loads and runs BAAI/bge-m3 locally; handles multilingual chunked embedding |
+| `pyarrow` | ≥ 14.0.0 | Columnar storage format required by LanceDB for batch operations and schema enforcement |
+| `pandas` | ≥ 2.0.0 | DataFrame operations used in bulk embedding, lint statistics, and rename-detection comparisons |
+| `pytest` | ≥ 8.0.0 | Test runner — 37 automated tests covering ingest atomicity, query routing, lint, and CLI output |
+| `pyyaml` | ≥ 6.0 | Parses `wiki.config.json` and YAML frontmatter in wiki pages |
+| `requests` | ≥ 2.31.0 | HTTP fetching used during source ingestion to retrieve external content |
 
 ### Install
 
