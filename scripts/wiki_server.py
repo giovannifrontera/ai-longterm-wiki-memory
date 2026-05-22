@@ -14,6 +14,13 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 sys.path.insert(0, str(Path(__file__).parent))
 import wiki_graph  # noqa: E402
+try:
+    import wiki_lancedb as _wiki_lancedb
+    from wiki_index import EXCLUDED_NAMES as _EXCLUDED_NAMES
+    _LANCEDB_IMPORT_OK = True
+except ImportError:
+    _LANCEDB_IMPORT_OK = False
+    _EXCLUDED_NAMES: set = set()
 
 _workspace: str = ""
 _cfg: dict = {}
@@ -21,6 +28,7 @@ _no_auth: bool = False
 _secret_key: str = ""
 _jwt_secret: str = ""  # derived at configure() — kept separate from login password
 _session_days: int = 7
+_lint_busy: bool = False
 
 _ws_clients: Set[WebSocket] = set()
 
@@ -106,6 +114,117 @@ async def api_page(path: str):
     if detail is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     return JSONResponse(detail)
+
+
+def _build_stats() -> dict:
+    from collections import Counter
+
+    # top_queried: aggregate .wiki-query-log.jsonl
+    log_path = Path(_workspace) / ".wiki-query-log.jsonl"
+    path_counts: Counter = Counter()
+    if log_path.exists():
+        try:
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    for p in entry.get("paths", []):
+                        path_counts[p] += 1
+                except json.JSONDecodeError:
+                    pass
+        except OSError:
+            pass
+
+    graph_data = wiki_graph.build_graph(_workspace, _cfg)
+    node_title: dict = {
+        n["path"]: n.get("title", n["path"]) for n in graph_data.get("nodes", [])
+    }
+    top_queried = [
+        {"path": p, "title": node_title.get(p, p), "query_count": c}
+        for p, c in path_counts.most_common(10)
+    ]
+
+    # stale_pages
+    staleness_days = _cfg.get("thresholds", {}).get("staleness_days", 90)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    stale_pages = []
+    for node in graph_data.get("nodes", []):
+        lm = node.get("last_modified")
+        if lm and (now_ts - lm) > staleness_days * 86400:
+            age_days = int((now_ts - lm) / 86400)
+            stale_pages.append({
+                "path": node["path"],
+                "title": node.get("title", node["path"]),
+                "age_days": age_days,
+            })
+    stale_pages.sort(key=lambda x: x["age_days"], reverse=True)
+
+    # unembedded_pages + summary chunk counts
+    unembedded_pages: list = []
+    total_chunks = 0
+    embedding_coverage_pct = 0.0
+    if _LANCEDB_IMPORT_OK:
+        try:
+            lancedb_path = os.path.join(
+                _workspace, _cfg.get("lancedb", {}).get("path", "memory/lancedb")
+            )
+            db = _wiki_lancedb.get_db(lancedb_path)
+            table = _wiki_lancedb.ensure_table(db)
+            df = table.to_pandas()
+            total_chunks = len(df)
+            embedded_paths = set(df["path"].unique())
+            total_pages = len(graph_data.get("nodes", []))
+            if total_pages > 0:
+                embedding_coverage_pct = round(len(embedded_paths) / total_pages * 100, 1)
+            for root_name in ("wiki", "wiki-works"):
+                root = Path(_workspace) / root_name
+                if not root.is_dir():
+                    continue
+                for md_file in root.rglob("*.md"):
+                    if md_file.name in _EXCLUDED_NAMES:
+                        continue
+                    if "raw" in md_file.parts or ".archive" in md_file.parts:
+                        continue
+                    rel = os.path.relpath(str(md_file), _workspace).replace("\\", "/")
+                    if rel not in embedded_paths:
+                        unembedded_pages.append({"path": rel, "title": rel})
+        except Exception:
+            pass
+
+    # lint_status
+    lint_status = None
+    lint_file = Path(_workspace) / ".wiki-lint-status.json"
+    if lint_file.exists():
+        try:
+            lint_status = json.loads(lint_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # auto_lint config
+    interval = _cfg.get("frontend", {}).get("lint_interval_hours")
+    auto_lint: dict = {"enabled": bool(interval), "interval_hours": interval, "next_run_iso": None}
+
+    total_pages = len(graph_data.get("nodes", []))
+    return {
+        "summary": {
+            "total_pages": total_pages,
+            "total_chunks": total_chunks,
+            "embedding_coverage_pct": embedding_coverage_pct,
+            "stale_pages_count": len(stale_pages),
+        },
+        "top_queried": top_queried,
+        "stale_pages": stale_pages,
+        "unembedded_pages": unembedded_pages[:10],
+        "lint_status": lint_status,
+        "auto_lint": auto_lint,
+    }
+
+
+@app.get("/api/stats")
+async def api_stats():
+    return JSONResponse(_build_stats())
 
 
 @app.get("/")

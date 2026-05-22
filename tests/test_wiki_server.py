@@ -109,3 +109,38 @@ def test_websocket_auth_rejected_without_cookie(auth_client):
     except Exception:
         rejected = True
     assert rejected, "Expected WebSocket to be rejected without valid cookie"
+
+
+def test_api_stats_endpoint(server_client, tmp_workspace):
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    for key in ("summary", "top_queried", "stale_pages", "unembedded_pages",
+                "lint_status", "auto_lint"):
+        assert key in data, f"Missing key: {key}"
+    assert "total_pages" in data["summary"]
+    assert "total_chunks" in data["summary"]
+    assert "embedding_coverage_pct" in data["summary"]
+    assert "stale_pages_count" in data["summary"]
+    assert isinstance(data["top_queried"], list)
+    assert isinstance(data["stale_pages"], list)
+
+
+def test_api_stats_top_queried(server_client, tmp_workspace):
+    import json as _json
+    log_path = tmp_workspace / ".wiki-query-log.jsonl"
+    entries = [
+        {"ts": "2026-05-20T10:00:00", "q": "what is RAG?", "paths": ["wiki/concepts/rag.md"]},
+        {"ts": "2026-05-20T10:01:00", "q": "explain RAG", "paths": ["wiki/concepts/rag.md"]},
+        {"ts": "2026-05-20T10:02:00", "q": "openai models", "paths": ["wiki/entities/openai.md"]},
+    ]
+    log_path.write_text("\n".join(_json.dumps(e) for e in entries), encoding="utf-8")
+
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    top = resp.json()["top_queried"]
+    assert len(top) >= 1
+    paths_in_top = [item["path"] for item in top]
+    assert "wiki/concepts/rag.md" in paths_in_top
+    rag_item = next(i for i in top if i["path"] == "wiki/concepts/rag.md")
+    assert rag_item["query_count"] == 2
