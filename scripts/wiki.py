@@ -124,6 +124,12 @@ def main():
     p_ingest_pdf.add_argument("--workspace", required=True)
     p_ingest_pdf.add_argument("--file", required=True)
 
+    p_serve = sub.add_parser("serve")
+    p_serve.add_argument("--workspace", required=True)
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=7331)
+    p_serve.add_argument("--no-auth", action="store_true")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -142,7 +148,7 @@ def main():
 def dispatch(args, cfg):
     from wiki_workflows import (cmd_ingest, cmd_query, cmd_lint, cmd_index,
                                 cmd_rebuild, cmd_session_update,
-                                cmd_scan_inbox, cmd_ingest_pdf)
+                                cmd_scan_inbox, cmd_ingest_pdf, cmd_serve)
     commands = {
         "ingest": cmd_ingest,
         "query": cmd_query,
@@ -152,6 +158,7 @@ def dispatch(args, cfg):
         "session-update": cmd_session_update,
         "scan-inbox": cmd_scan_inbox,
         "ingest-pdf": cmd_ingest_pdf,
+        "serve": cmd_serve,
     }
     commands[args.command](args, cfg)
 

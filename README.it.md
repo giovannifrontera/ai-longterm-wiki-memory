@@ -1,7 +1,7 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-2.0.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-56%20passati-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/versione-2.1.0-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-82%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
@@ -9,7 +9,7 @@
 
 Il tuo agente AI dimentica tutto tra una sessione e l'altra. Questo sistema gli dà una base di conoscenza strutturata e auto-gestita — ogni pagina è contemporaneamente un documento leggibile e un vettore interrogabile.
 
-[Avvio rapido](#avvio-rapido) · [Funzionalità](#funzionalità) · [Ingestion PDF](#ingestion-pdf-multi-sorgente-v20) · [Integrazione](#integrazione) · [CLI Reference](#cli-reference)
+[Avvio rapido](#avvio-rapido) · [Funzionalità](#funzionalità) · [Ingestion PDF](#ingestion-pdf-multi-sorgente-v20) · [Interfaccia Web](#interfaccia-web-v21) · [Integrazione](#integrazione) · [CLI Reference](#cli-reference)
 
 ---
 
@@ -172,6 +172,57 @@ wiki.py scan-inbox --workspace <path>
 
 ---
 
+## Interfaccia Web *(v2.1)*
+
+Un frontend web read-only per esplorare il wiki nel browser — senza toccare nessun workflow.
+
+```
+py scripts/wiki.py serve --workspace /path/al/workspace [--port 7331] [--no-auth]
+```
+
+Apri `http://localhost:7331`.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  AI Wiki Memory   [wiki] [ricerca] [tutti]   🔍  ● live  │
+├───────────────────────────┬──────────────────────────────┤
+│                           │  # Titolo pagina             │
+│    GRAFO DELLA            │  concetto · ricerca · data   │
+│    CONOSCENZA             │  ──────────────────────────  │
+│    (D3 force-directed)    │  [markdown renderizzato]     │
+│                           │                              │
+│  ● entità (blu)           │  ── Link uscenti ──          │
+│  ● concetti (verde)       │  ── Link entranti ──         │
+│  ● sintesi (viola)        │  ── Pagine simili ──         │
+│  ── link esplicito        │     embedding (87%)          │
+│  ╌╌ similarità semantica  │                              │
+└───────────────────────────┴──────────────────────────────┘
+```
+
+**Funzionalità:**
+- **Grafo force-directed** — nodi dimensionati per grado di connessione, colorati per categoria (entità/concetti/sintesi), etichette su tutti i nodi
+- **Archi espliciti** — riferimenti `[[wiki-link]]` come frecce solide
+- **Archi semantici** — similarità coseno LanceDB ≥ 0.65 come linee tratteggiate
+- **Aggiornamenti live** — WebSocket invia `graph_update` ad ogni modifica file; il grafo transiziona senza spostare i nodi
+- **Animazione query hit** — quando `wiki.py query` viene eseguito, i nodi recuperati pulsano oro→rosso per 4 secondi
+- **Pannello pagina** — click su un nodo → markdown renderizzato, link uscenti/entranti, pagine simili con barre di similarità
+- **Tab per progetto** — filtra il grafo per workspace
+- **Protezione con password** — auth JWT cookie (sessione 7 giorni); imposta tramite `wiki.config.json` o env `WIKI_PASSWORD`; bypass con `--no-auth` per uso locale
+
+**Config (opzionale):**
+```json
+{
+  "frontend": {
+    "password": "la-tua-password",
+    "session_days": 7
+  }
+}
+```
+
+**Il frontend è strettamente read-only.** Tutti i workflow wiki (ingest, query, lint) continuano a funzionare identicamente sia che il server sia in esecuzione o meno.
+
+---
+
 ## Architettura
 
 ```
@@ -181,12 +232,16 @@ workspace/
 ├── wiki-session.md           ← stato sessione live (generato da wiki.py)
 ├── wiki.config.json          ← configurazione
 ├── scripts/
-│   ├── wiki.py               ← entry point CLI unificato (8 comandi)
+│   ├── wiki.py               ← entry point CLI unificato (9 comandi)
 │   ├── wiki_context.py       ← iniettore contesto pre-prompt (hook)
 │   ├── wiki_pdf_watcher.py   ← scanner inbox PDF (hash detection + pdfplumber)
 │   ├── wiki_embed.py         ← chunking boundary-aware + embedding bge-m3
 │   ├── wiki_lancedb.py       ← operazioni LanceDB (upsert, staging, rename)
-│   └── wiki_index.py         ← generazione index.md con budget token
+│   ├── wiki_index.py         ← generazione index.md con budget token
+│   ├── wiki_graph.py         ← costruttore nodi/archi (filesystem + LanceDB, cache 30s)
+│   └── wiki_server.py        ← server FastAPI: REST, WebSocket, file watcher, JWT auth
+├── frontend/
+│   └── index.html            ← SPA: grafo D3.js + pannello pagina + client WebSocket
 ├── pdf-inbox/                ← tutte le sorgenti PDF convergono qui
 │   └── .registry.json        ← hash + status per PDF (scrittura atomica)
 ├── wiki/                     ← base di conoscenza permanente
@@ -342,7 +397,7 @@ Config minimale:
 ```bash
 py scripts/wiki.py rebuild --workspace my-workspace/
 pytest tests/ -v
-# Atteso: 56 test passati
+# Atteso: 82 test passati
 ```
 
 ---
@@ -361,6 +416,7 @@ wiki.py <comando> [argomenti]
                    --status <ok|failed|in-progress|partial-failure> [--detail <json>]
   scan-inbox     --workspace <path>
   ingest-pdf     --workspace <path> --file <path-locale|url>
+  serve          --workspace <path> [--host 127.0.0.1] [--port 7331] [--no-auth]
 
 wiki_context.py  (hook — emette blocco <wiki-context> su stdout)
   --workspace <path>  --q <stringa>  [--k 3]  [--max-chars 600]
@@ -386,6 +442,27 @@ Ogni comando produce JSON su stdout:
 ---
 
 ## Changelog
+
+### v2.1.0 — 2026-05-22
+
+**Novità: Interfaccia web** (`wiki.py serve`)
+
+- `scripts/wiki_graph.py` — costruisce nodi + archi da filesystem e LanceDB; cache 30 secondi con dirty flag; `get_page_detail()` con protezione path traversal
+- `scripts/wiki_server.py` — FastAPI: `/api/graph`, `/api/page/{path}`, WebSocket `/ws`, auth JWT cookie; file watcher asincrono (watchfiles) e tail watcher del query-log
+- `frontend/index.html` — SPA zero-build: grafo D3.js force-directed, pannello pagina con markdown renderizzato (sanitizzato con DOMPurify), aggiornamenti live con posizioni nodi preservate, animazione pulse query-hit
+- Nuovo comando CLI: `wiki.py serve --workspace <path> [--host] [--port 7331] [--no-auth]`
+- `wiki.py query` ora appende a `.wiki-query-log.jsonl` — letto dal server per animare i nodi in tempo reale
+
+**Fix robustezza (post-review)**
+- `_query_log_watcher`: `pos = f.tell()` elimina race condition che causava query-hit mancati silenziosi
+- Chiave firma JWT derivata via HMAC dalla password — mai la stringa grezza
+- `httponly=True` sul cookie di sessione — riduce surface XSS
+- `sys.path.insert` spostato a livello modulo in `wiki_server.py`
+- `fetchGraph()` preserva `x/y/vx/vy` sui nodi esistenti — nessuno snap di posizione su aggiornamenti live
+
+**Test:** 26 nuovi test (22 frontend + 2 path traversal + 2 WebSocket) — **82 totali, tutti green**
+
+---
 
 ### v2.0 — 2026-05-22
 

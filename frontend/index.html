@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Wiki Memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<style>
+:root {
+  --bg:       #080c10;
+  --surface:  #0e1319;
+  --surface2: #141b23;
+  --border:   #1e2a36;
+  --border2:  #2a3a4a;
+  --text:     #cdd6e0;
+  --muted:    #4a6070;
+  --accent:   #00c8ff;
+  --accent2:  #0084a8;
+  --green:    #00e5a0;
+  --violet:   #a855f7;
+  --gold:     #f5a623;
+  --red:      #ff4757;
+  --header-h: 56px;
+  --panel-w:  420px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: overlay;
+}
+
+/* ── HEADER ── */
+#header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.logo-zone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-right: 1px solid var(--border);
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--accent);
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.logo-text {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.logo-text span { color: var(--accent); }
+
+#project-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  height: 100%;
+  align-items: center;
+}
+
+#project-tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.tab:hover { color: var(--text); border-color: var(--border2); }
+.tab.active { background: rgba(0,200,255,0.08); border-color: var(--accent); color: var(--accent); }
+
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+#search {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 6px 10px 6px 32px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  width: 200px;
+  transition: border-color 0.2s;
+}
+
+.search-wrap { position: relative; }
+
+.search-wrap::before {
+  content: '⌕';
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+#search:focus { outline: none; border-color: var(--accent); }
+#search::placeholder { color: var(--muted); }
+
+#stats-pill {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  white-space: nowrap;
+  font-family: 'DM Mono', monospace;
+}
+
+#ws-indicator { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); }
+
+#ws-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--muted); transition: background 0.3s; flex-shrink: 0;
+}
+
+#ws-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* ── MAIN LAYOUT ── */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+#graph-pane {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(0,200,255,0.03) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 70%, rgba(168,85,247,0.03) 0%, transparent 50%);
+}
+
+#graph-svg { width: 100%; height: 100%; }
+
+#graph-pane::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* ── GRAPH ELEMENTS ── */
+.link { fill: none; }
+
+.node circle { cursor: pointer; stroke-width: 1.5px; }
+
+.node text {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  fill: var(--text);
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+}
+
+.node.dimmed { opacity: 0.08; transition: opacity 0.2s; }
+
+.node.hl circle:last-of-type {
+  stroke: var(--accent) !important;
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+@keyframes qpulse {
+  0%   { filter: drop-shadow(0 0 4px #f5a623) drop-shadow(0 0 12px #f5a623); }
+  40%  { filter: drop-shadow(0 0 10px #ff4757) drop-shadow(0 0 22px #ff4757); }
+  100% { filter: none; }
+}
+.qhit { animation: qpulse 4s ease-out forwards; }
+
+/* ── TOOLTIP ── */
+#tooltip {
+  position: fixed;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text);
+  pointer-events: none;
+  display: none;
+  max-width: 220px;
+  z-index: 50;
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+#tooltip .tip-title { color: var(--accent); font-weight: 500; margin-bottom: 3px; }
+#tooltip .tip-desc  { color: var(--muted); }
+#tooltip .tip-cat   {
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); color: var(--muted);
+}
+
+/* ── PAGE PANEL ── */
+#page-pane {
+  width: var(--panel-w);
+  min-width: 300px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+#page-pane::-webkit-scrollbar { width: 4px; }
+#page-pane::-webkit-scrollbar-track { background: transparent; }
+#page-pane::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+#ph {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.ph-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+
+#ph-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  flex: 1;
+}
+
+#close-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+#close-btn:hover { color: var(--text); border-color: var(--text); }
+
+#ph-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+
+.badge { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; font-weight: 500; }
+.badge-cat  { background: rgba(0,200,255,0.1); color: var(--accent); border: 1px solid rgba(0,200,255,0.2); }
+.badge-proj { background: rgba(168,85,247,0.1); color: var(--violet); border: 1px solid rgba(168,85,247,0.2); }
+.badge-date { background: rgba(74,96,112,0.15); color: var(--muted); border: 1px solid var(--border); }
+
+/* ── MARKDOWN BODY ── */
+#pb { padding: 20px; font-size: 13px; line-height: 1.75; color: var(--text); flex: 1; }
+
+#pb h1, #pb h2, #pb h3 {
+  font-family: 'Syne', sans-serif; color: var(--text); margin: 20px 0 8px; font-weight: 700;
+}
+#pb h1 { font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+#pb h2 { font-size: 15px; }
+#pb h3 { font-size: 13px; color: var(--accent); }
+#pb p  { margin-bottom: 12px; }
+#pb ul, #pb ol { padding-left: 20px; margin-bottom: 12px; }
+#pb li { margin-bottom: 4px; }
+
+#pb code {
+  background: var(--bg); color: var(--green);
+  padding: 2px 6px; border-radius: 3px;
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  border: 1px solid var(--border);
+}
+
+#pb pre {
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 14px; border-radius: 6px; overflow-x: auto; margin-bottom: 14px;
+}
+#pb pre code { background: none; border: none; padding: 0; font-size: 12px; }
+#pb blockquote { border-left: 3px solid var(--accent2); padding-left: 14px; margin: 12px 0; color: var(--muted); }
+#pb a { color: var(--accent); text-decoration: none; }
+#pb a:hover { text-decoration: underline; }
+#pb table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12px; }
+#pb th { background: var(--bg); color: var(--accent); padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+#pb td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+#pb hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+/* ── PAGE LINKS ── */
+#pl { padding: 0 20px 24px; border-top: 1px solid var(--border); }
+.ls { margin-top: 18px; }
+.ls-title {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+}
+.ls-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.chip {
+  display: inline-block; padding: 4px 10px; border-radius: 4px;
+  font-size: 11px; margin: 3px 3px 0 0; cursor: pointer;
+  border: 1px solid var(--border2); color: var(--text);
+  background: var(--surface2); transition: all 0.15s;
+  font-family: 'DM Mono', monospace;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.05); }
+
+.sim-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px; font-size: 12px; cursor: pointer;
+  border-radius: 4px; margin-bottom: 2px; border: 1px solid transparent; transition: all 0.15s;
+}
+.sim-row:hover { border-color: var(--border2); background: var(--surface2); color: var(--accent); }
+.sim-bar-wrap { flex: 1; margin: 0 10px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+.sim-bar { height: 100%; background: var(--violet); border-radius: 1px; }
+.sim-pct { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+/* ── LOGIN OVERLAY ── */
+#login-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8,12,16,0.92); backdrop-filter: blur(12px);
+  display: none; align-items: center; justify-content: center; z-index: 100;
+}
+
+#login-box {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 40px; width: 340px; text-align: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+}
+
+.lb-icon {
+  width: 48px; height: 48px; border: 2px solid var(--accent); border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800;
+  color: var(--accent); margin: 0 auto 20px; letter-spacing: -2px;
+}
+
+#login-box h2 { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+#login-box p  { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+
+#lpw {
+  width: 100%; padding: 10px 14px;
+  background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+  border-radius: 6px; font-size: 13px; font-family: 'DM Mono', monospace;
+  margin-bottom: 12px; transition: border-color 0.2s;
+}
+#lpw:focus { outline: none; border-color: var(--accent); }
+
+#lbtn {
+  width: 100%; padding: 10px; background: var(--accent); color: var(--bg);
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+  font-family: 'Syne', sans-serif; cursor: pointer; letter-spacing: 0.04em; transition: opacity 0.15s;
+}
+#lbtn:hover { opacity: 0.88; }
+
+#lerr { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
+
+/* ── EMPTY STATE ── */
+#empty-state {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; color: var(--muted); pointer-events: none; z-index: 2; display: none;
+}
+#empty-state .es-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
+#empty-state p { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <div id="login-box">
+    <div class="lb-icon">Wk</div>
+    <h2>AI Wiki Memory</h2>
+    <p>Inserisci la password per accedere</p>
+    <input id="lpw" type="password" placeholder="password" autofocus>
+    <button id="lbtn">Accedi</button>
+    <div id="lerr">Password non corretta</div>
+  </div>
+</div>
+
+<header id="header">
+  <div class="logo-zone">
+    <div class="logo-icon">Wk</div>
+    <span class="logo-text">AI <span>Wiki</span> Memory</span>
+  </div>
+  <div id="project-tabs"></div>
+  <div class="header-right">
+    <span id="stats-pill">0 nodi · 0 archi</span>
+    <div class="search-wrap">
+      <input id="search" type="text" placeholder="cerca...">
+    </div>
+    <div id="ws-indicator">
+      <div id="ws-dot"></div>
+      <span id="ws-label">ws</span>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <div id="graph-pane">
+    <svg id="graph-svg"></svg>
+    <div id="empty-state">
+      <div class="es-icon">◈</div>
+      <p>Nessun nodo trovato</p>
+    </div>
+  </div>
+  <aside id="page-pane">
+    <div id="ph">
+      <div class="ph-top">
+        <div id="ph-title"></div>
+        <button id="close-btn" aria-label="Chiudi">&#x2715;</button>
+      </div>
+      <div id="ph-badges"></div>
+    </div>
+    <div id="pb"></div>
+    <div id="pl"></div>
+  </aside>
+</main>
+
+<div id="tooltip">
+  <div class="tip-title"></div>
+  <div class="tip-desc"></div>
+  <div class="tip-cat"></div>
+</div>
+
+<script>
+'use strict';
+
+const CAT_COLORS = {
+  entities:  '#00c8ff',
+  concepts:  '#00e5a0',
+  synthesis: '#a855f7',
+  raw:       '#4a6070',
+  other:     '#4a6070',
+};
+
+const CAT_LABELS = {
+  entities: 'Entità', concepts: 'Concetto', synthesis: 'Sintesi', raw: 'Raw', other: 'Altro'
+};
+
+let graphData = { nodes: [], edges: [] };
+let selectedProject = 'tutti';
+let searchTerm = '';
+let simulation = null;
+
+const svg = d3.select('#graph-svg');
+const root = svg.append('g').attr('class', 'root');
+const zoom = d3.zoom().scaleExtent([0.05, 6]).on('zoom', e => root.attr('transform', e.transform));
+svg.call(zoom);
+
+const defsEl = svg.append('defs');
+defsEl.append('marker')
+  .attr('id', 'arrow')
+  .attr('viewBox', '0 -4 8 8').attr('refX', 16).attr('refY', 0)
+  .attr('markerWidth', 5).attr('markerHeight', 5).attr('orient', 'auto')
+  .append('path').attr('d', 'M0,-4L8,0L0,4').attr('fill', '#2a3a4a');
+
+const linkGroup = root.append('g').attr('class', 'links');
+const nodeGroup = root.append('g').attr('class', 'nodes');
+
+const tip = document.getElementById('tooltip');
+
+function gsize() {
+  const el = document.getElementById('graph-pane');
+  return { w: el.clientWidth, h: el.clientHeight };
+}
+
+function filteredData() {
+  let nodes = graphData.nodes;
+  if (selectedProject !== 'tutti') nodes = nodes.filter(n => n.project === selectedProject);
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    nodes = nodes.filter(n =>
+      n.title.toLowerCase().includes(q) || (n.description || '').toLowerCase().includes(q));
+  }
+  const ids = new Set(nodes.map(n => n.id));
+  const edges = graphData.edges.filter(e => {
+    const s = typeof e.source === 'object' ? e.source.id : e.source;
+    const t = typeof e.target === 'object' ? e.target.id : e.target;
+    return ids.has(s) && ids.has(t);
+  });
+  return { nodes, edges };
+}
+
+function degrees(nodes, edges) {
+  const d = {};
+  nodes.forEach(n => d[n.id] = 0);
+  edges.forEach(e => {
+    const s = typeof e.source === 'object' ? e.source.id : e.source;
+    const t = typeof e.target === 'object' ? e.target.id : e.target;
+    if (d[s] !== undefined) d[s]++;
+    if (d[t] !== undefined) d[t]++;
+  });
+  return d;
+}
+
+function updateStats(nodes, edges) {
+  document.getElementById('stats-pill').textContent =
+    `${nodes.length} nodi · ${edges.length} archi`;
+  document.getElementById('empty-state').style.display = nodes.length === 0 ? 'block' : 'none';
+}
+
+function renderGraph() {
+  const { w, h } = gsize();
+  const { nodes, edges } = filteredData();
+  const deg = degrees(nodes, edges);
+
+  updateStats(nodes, edges);
+
+  linkGroup.selectAll('line')
+    .data(edges, e => {
+      const s = typeof e.source === 'object' ? e.source.id : e.source;
+      const t = typeof e.target === 'object' ? e.target.id : e.target;
+      return s + '|' + t + '|' + e.type;
+    })
+    .join(
+      en => en.append('line').attr('class', 'link')
+              .attr('stroke-dasharray', d => d.type === 'semantic' ? '4,3' : null)
+              .attr('stroke', d => d.type === 'semantic' ? '#2a3a4a' : '#1e2a36')
+              .attr('stroke-opacity', d => d.type === 'semantic'
+                ? Math.max(0.15, (d.weight || 0.65) * 0.5) : 0.6)
+              .attr('stroke-width', d => d.type === 'semantic' ? 0.75 : 1)
+              .attr('marker-end', d => d.type === 'link' ? 'url(#arrow)' : null),
+      up => up,
+      ex => ex.transition().duration(300).style('opacity', 0).remove()
+    );
+
+  nodeGroup.selectAll('g.node')
+    .data(nodes, d => d.id)
+    .join(
+      en => {
+        const g = en.append('g').attr('class', 'node').style('opacity', 0)
+          .call(d3.drag()
+            .on('start', (ev, d) => { if (!ev.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on('drag',  (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
+            .on('end',   (ev, d) => { if (!ev.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }))
+          .on('click',    (ev, d) => { ev.stopPropagation(); loadPage(d); })
+          .on('dblclick', (ev, d) => { ev.stopPropagation(); centerOn(d); })
+          .on('mouseover', (ev, d) => {
+            tip.style.display = 'block';
+            tip.querySelector('.tip-title').textContent = d.title;
+            const descEl = tip.querySelector('.tip-desc');
+            descEl.textContent = d.description || '';
+            descEl.style.display = d.description ? 'block' : 'none';
+            tip.querySelector('.tip-cat').textContent =
+              (CAT_LABELS[d.category] || d.category) + ' · ' + d.project;
+          })
+          .on('mousemove', ev => {
+            tip.style.left = (ev.clientX + 14) + 'px';
+            tip.style.top  = (ev.clientY - 10) + 'px';
+          })
+          .on('mouseout', () => { tip.style.display = 'none'; });
+
+        g.append('circle')
+          .attr('r', d => 10 + (deg[d.id] || 0) * 1.8)
+          .attr('fill', d => CAT_COLORS[d.category] + '18')
+          .attr('stroke', d => CAT_COLORS[d.category] + '55')
+          .attr('stroke-width', 1);
+        g.append('circle')
+          .attr('r', d => 5 + (deg[d.id] || 0) * 1.2)
+          .attr('fill', d => CAT_COLORS[d.category] || CAT_COLORS.other)
+          .attr('stroke', '#080c10').attr('stroke-width', 1.5);
+        g.append('text').attr('dy', '0.35em').text(d => d.title);
+        g.transition().duration(400).style('opacity', 1);
+        return g;
+      },
+      up => {
+        up.select('circle:nth-of-type(1)').attr('r', d => 10 + (deg[d.id] || 0) * 1.8);
+        up.select('circle:nth-of-type(2)').attr('r', d => 5  + (deg[d.id] || 0) * 1.2);
+        return up;
+      },
+      ex => ex.transition().duration(300).style('opacity', 0).remove()
+    );
+
+  nodeGroup.selectAll('g.node text').attr('x', d => 13 + (deg[d.id] || 0) * 1.2);
+
+  if (simulation) simulation.stop();
+
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id(d => d.id)
+      .distance(d => d.type === 'semantic' ? 150 : 90)
+      .strength(d => d.type === 'semantic' ? 0.3 : 0.8))
+    .force('charge', d3.forceManyBody().strength(-280).distanceMax(400))
+    .force('center', d3.forceCenter(w / 2, h / 2).strength(0.06))
+    .force('collision', d3.forceCollide(d => 14 + (deg[d.id] || 0) * 1.8))
+    .alphaDecay(0.025);
+
+  simulation.on('tick', () => {
+    linkGroup.selectAll('line')
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    nodeGroup.selectAll('g.node')
+      .attr('transform', d => `translate(${d.x || 0},${d.y || 0})`);
+  });
+}
+
+function renderTabs() {
+  const projects = ['tutti', ...new Set(graphData.nodes.map(n => n.project))].sort();
+  const tabs = document.getElementById('project-tabs');
+  tabs.textContent = '';
+  projects.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (p === selectedProject ? ' active' : '');
+    btn.textContent = p;
+    btn.addEventListener('click', () => { selectedProject = p; renderTabs(); renderGraph(); });
+    tabs.appendChild(btn);
+  });
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value.trim(); renderGraph();
+});
+
+svg.on('click', () => {
+  nodeGroup.selectAll('g.node').classed('hl', false);
+  document.getElementById('page-pane').style.display = 'none';
+});
+
+function centerOn(d) {
+  const { w, h } = gsize();
+  const s = 1.8;
+  svg.transition().duration(600).ease(d3.easeCubicInOut).call(
+    zoom.transform,
+    d3.zoomIdentity.translate(w / 2 - s * d.x, h / 2 - s * d.y).scale(s)
+  );
+}
+
+async function loadPage(d) {
+  const resp = await fetch('/api/page/' + encodeURIComponent(d.path));
+  if (resp.status === 401) { showLogin(); return; }
+  if (!resp.ok) return;
+  const data = await resp.json();
+
+  document.getElementById('ph-title').textContent = data.metadata.title || d.title;
+
+  const badges = document.getElementById('ph-badges');
+  badges.textContent = '';
+
+  const catBadge = document.createElement('span');
+  catBadge.className = 'badge badge-cat';
+  catBadge.textContent = CAT_LABELS[d.category] || d.category;
+  badges.appendChild(catBadge);
+
+  if (d.project !== 'wiki') {
+    const projBadge = document.createElement('span');
+    projBadge.className = 'badge badge-proj';
+    projBadge.textContent = d.project;
+    badges.appendChild(projBadge);
+  }
+
+  if (data.metadata.last_modified) {
+    const dateBadge = document.createElement('span');
+    dateBadge.className = 'badge badge-date';
+    dateBadge.textContent = new Date(data.metadata.last_modified * 1000).toLocaleDateString('it-IT');
+    badges.appendChild(dateBadge);
+  }
+
+  /* Render markdown via marked + sanitize with DOMPurify before DOM insertion */
+  const rawHtml = marked.parse(data.content || '');
+  document.getElementById('pb').innerHTML = DOMPurify.sanitize(rawHtml);
+
+  const pl = document.getElementById('pl');
+  pl.textContent = '';
+
+  function makeSection(labelText, items, clickFn) {
+    if (!items || !items.length) return;
+    const sec = document.createElement('div');
+    sec.className = 'ls';
+    const h = document.createElement('div');
+    h.className = 'ls-title';
+    h.textContent = labelText;
+    sec.appendChild(h);
+    items.forEach(item => {
+      const el = document.createElement('span');
+      el.className = 'chip';
+      el.textContent = typeof item === 'string' ? item.split('/').pop() : item.id.split('/').pop();
+      el.addEventListener('click', () => clickFn(item));
+      sec.appendChild(el);
+    });
+    pl.appendChild(sec);
+  }
+
+  function makeSimSection(similar) {
+    if (!similar || !similar.length) return;
+    const sec = document.createElement('div');
+    sec.className = 'ls';
+    const h = document.createElement('div');
+    h.className = 'ls-title';
+    h.textContent = 'Pagine simili';
+    sec.appendChild(h);
+    similar.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'sim-row';
+      const name = document.createElement('span');
+      name.textContent = s.id.split('/').pop();
+      const barWrap = document.createElement('div');
+      barWrap.className = 'sim-bar-wrap';
+      const bar = document.createElement('div');
+      bar.className = 'sim-bar';
+      bar.style.width = Math.round(s.weight * 100) + '%';
+      barWrap.appendChild(bar);
+      const pct = document.createElement('span');
+      pct.className = 'sim-pct';
+      pct.textContent = Math.round(s.weight * 100) + '%';
+      row.appendChild(name);
+      row.appendChild(barWrap);
+      row.appendChild(pct);
+      row.addEventListener('click', () => jumpTo(s.id));
+      sec.appendChild(row);
+    });
+    pl.appendChild(sec);
+  }
+
+  makeSection('Link uscenti', data.links_out, id => jumpTo(id));
+  makeSection('Link entranti', data.links_in, id => jumpTo(id));
+  makeSimSection(data.similar);
+
+  document.getElementById('page-pane').style.display = 'flex';
+  nodeGroup.selectAll('g.node').classed('hl', nd => nd.id === d.id);
+
+  const hd = graphData.nodes.find(n => n.id === d.id);
+  if (hd && hd.x && hd.y) centerOn(hd);
+}
+
+function jumpTo(nodeId) {
+  const nd = graphData.nodes.find(n => n.id === nodeId);
+  if (nd) loadPage(nd);
+}
+
+document.getElementById('close-btn').addEventListener('click', () => {
+  document.getElementById('page-pane').style.display = 'none';
+  nodeGroup.selectAll('g.node').classed('hl', false);
+});
+
+function handleQueryHit(paths) {
+  paths.forEach(path => {
+    const nid = path.replace(/\.md$/, '');
+    nodeGroup.selectAll('g.node').filter(d => d.id === nid).each(function() {
+      this.classList.remove('qhit');
+      void this.offsetWidth;
+      this.classList.add('qhit');
+      setTimeout(() => this.classList.remove('qhit'), 4200);
+    });
+  });
+  if (simulation) simulation.alpha(0.3).restart();
+}
+
+const wsDot = document.getElementById('ws-dot');
+const wsLabel = document.getElementById('ws-label');
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(proto + '//' + location.host + '/ws');
+  ws.onopen  = () => { wsDot.classList.add('on'); wsLabel.textContent = 'live'; };
+  ws.onclose = () => { wsDot.classList.remove('on'); wsLabel.textContent = 'ws'; setTimeout(connectWS, 3000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = async e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'graph_update') await fetchGraph();
+    else if (msg.type === 'query_hit') handleQueryHit(msg.paths || []);
+  };
+}
+
+async function fetchGraph() {
+  const resp = await fetch('/api/graph');
+  if (resp.status === 401) { showLogin(); return; }
+  const fresh = await resp.json();
+  // Preserve D3 simulation positions so live graph_update doesn't snap nodes to random coords
+  const posMap = new Map(graphData.nodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]));
+  fresh.nodes.forEach(n => { const p = posMap.get(n.id); if (p) Object.assign(n, p); });
+  graphData = fresh;
+  renderTabs();
+  renderGraph();
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').style.display = 'flex';
+}
+
+document.getElementById('lbtn').addEventListener('click', async () => {
+  const pw = document.getElementById('lpw').value;
+  const resp = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+  });
+  if (resp.ok) {
+    document.getElementById('login-overlay').style.display = 'none';
+    await init();
+  } else {
+    document.getElementById('lerr').style.display = 'block';
+  }
+});
+
+document.getElementById('lpw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('lbtn').click();
+});
+
+window.addEventListener('resize', () => {
+  if (simulation) {
+    const { w, h } = gsize();
+    simulation.force('center', d3.forceCenter(w / 2, h / 2).strength(0.06)).alpha(0.1).restart();
+  }
+});
+
+async function init() {
+  await fetchGraph();
+  connectWS();
+}
+
+init();
+</script>
+</body>
+</html>
