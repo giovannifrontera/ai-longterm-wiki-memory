@@ -82,4 +82,67 @@ def deposit_raw(text: str, pdf_name: str, workspace: str, cfg: dict) -> str:
 
 
 def scan_inbox(workspace: str, cfg: dict) -> dict:
-    raise NotImplementedError
+    """Scansiona pdf-inbox/, processa PDF nuovi/modificati. Ritorna report JSON-serializzabile."""
+    inbox_dir = Path(workspace) / INBOX_DIR
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+
+    registry = load_registry(workspace)
+    processed: list[str] = []
+    skipped: list[str] = []
+    failed: list[dict] = []
+
+    for pdf_file in sorted(inbox_dir.glob("*.pdf")):
+        name = pdf_file.name
+        current_hash = compute_hash(str(pdf_file))
+        entry = registry.get(name, {})
+
+        # Salta se già processato o fallito con lo stesso hash
+        if entry.get("hash") == current_hash and entry.get("status") in ("deposited", "failed"):
+            skipped.append(name)
+            continue
+
+        # Marca pending prima di iniziare (crash recovery: pending → reprocessed al prossimo scan)
+        registry[name] = {
+            "hash": current_hash,
+            "deposited_to": None,
+            "processed_at": datetime.now().isoformat(timespec="seconds"),
+            "status": "pending",
+        }
+        save_registry(workspace, registry)
+
+        try:
+            text = extract_text(str(pdf_file))
+            if not text.strip():
+                raise ValueError("no text extractable (scanned PDF)")
+
+            rel_path = deposit_raw(text, name, workspace, cfg)
+
+            registry[name] = {
+                "hash": current_hash,
+                "deposited_to": rel_path,
+                "processed_at": datetime.now().isoformat(timespec="seconds"),
+                "status": "deposited",
+            }
+            processed.append(Path(rel_path).name)
+
+        except Exception as e:
+            registry[name] = {
+                "hash": current_hash,
+                "deposited_to": None,
+                "processed_at": datetime.now().isoformat(timespec="seconds"),
+                "status": "failed",
+                "error": str(e),
+            }
+            failed.append({"name": name, "error": str(e)})
+
+        save_registry(workspace, registry)
+
+    return {
+        "status": "ok",
+        "op": "scan-inbox",
+        "processed": len(processed),
+        "skipped": len(skipped),
+        "failed": len(failed),
+        "deposited": processed,
+        "failures": failed,
+    }

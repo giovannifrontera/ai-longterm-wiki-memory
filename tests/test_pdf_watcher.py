@@ -123,3 +123,63 @@ def test_deposit_raw_uses_project_default(tmp_workspace, cfg):
     from wiki_pdf_watcher import deposit_raw
     rel = deposit_raw("text", "paper1.pdf", str(tmp_workspace), cfg)
     assert "wiki-works/test/raw/paper1.md" == rel
+
+
+# ── scan_inbox tests ─────────────────────────────────────────────────────────
+
+def test_scan_new_pdf_is_deposited(tmp_workspace, cfg, sample_pdf):
+    from wiki_pdf_watcher import scan_inbox, load_registry
+    with patch("wiki_pdf_watcher.extract_text", return_value="Extracted content"):
+        result = scan_inbox(str(tmp_workspace), cfg)
+    assert result["status"] == "ok"
+    assert result["processed"] == 1
+    assert result["failed"] == 0
+    raw = tmp_workspace / "wiki-works" / "test" / "raw" / "paper1.md"
+    assert raw.exists()
+    assert load_registry(str(tmp_workspace))["paper1.pdf"]["status"] == "deposited"
+
+def test_scan_unchanged_pdf_is_skipped(tmp_workspace, cfg, sample_pdf):
+    from wiki_pdf_watcher import scan_inbox
+    with patch("wiki_pdf_watcher.extract_text", return_value="Content"):
+        scan_inbox(str(tmp_workspace), cfg)      # prima passata
+        result = scan_inbox(str(tmp_workspace), cfg)  # seconda passata
+    assert result["processed"] == 0
+    assert result["skipped"] == 1
+
+def test_scan_modified_pdf_is_reprocessed(tmp_workspace, cfg, sample_pdf):
+    from wiki_pdf_watcher import scan_inbox
+    with patch("wiki_pdf_watcher.extract_text", return_value="First version"):
+        scan_inbox(str(tmp_workspace), cfg)
+
+    sample_pdf.write_bytes(b"%PDF-1.4 modified content")  # cambia hash
+
+    with patch("wiki_pdf_watcher.extract_text", return_value="Updated version"):
+        result = scan_inbox(str(tmp_workspace), cfg)
+
+    assert result["processed"] == 1
+    raw = tmp_workspace / "wiki-works" / "test" / "raw" / "paper1.md"
+    assert "Updated version" in raw.read_text(encoding="utf-8")
+
+def test_scan_scanned_pdf_marked_as_failed(tmp_workspace, cfg, sample_pdf):
+    from wiki_pdf_watcher import scan_inbox, load_registry
+    with patch("wiki_pdf_watcher.extract_text", return_value=""):
+        result = scan_inbox(str(tmp_workspace), cfg)
+    assert result["failed"] == 1
+    assert load_registry(str(tmp_workspace))["paper1.pdf"]["status"] == "failed"
+
+def test_scan_creates_pdf_inbox_if_missing(tmp_workspace, cfg):
+    from wiki_pdf_watcher import scan_inbox
+    import shutil
+    inbox = tmp_workspace / "pdf-inbox"
+    shutil.rmtree(str(inbox))
+    assert not inbox.exists()
+    result = scan_inbox(str(tmp_workspace), cfg)
+    assert inbox.exists()
+    assert result["processed"] == 0
+
+def test_scan_output_json_structure(tmp_workspace, cfg, sample_pdf):
+    from wiki_pdf_watcher import scan_inbox
+    with patch("wiki_pdf_watcher.extract_text", return_value="Text"):
+        result = scan_inbox(str(tmp_workspace), cfg)
+    assert set(result.keys()) == {"status", "op", "processed", "skipped", "failed", "deposited", "failures"}
+    assert result["op"] == "scan-inbox"
