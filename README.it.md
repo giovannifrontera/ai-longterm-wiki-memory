@@ -1,22 +1,174 @@
 # AI Longterm Wiki Memory
 
 [![Version](https://img.shields.io/badge/versione-2.0.0-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-56%20passati-brightgreen)](tests/)
+[![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
+[![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
-Un sistema di memoria wiki semantica per agenti AI — progettato per funzionare con [OpenClaw](https://github.com/openclaw/openclaw) e qualsiasi agente capace di leggere file e chiamare comandi bash.
+**Memoria semantica a lungo termine per agenti AI**
+
+Il tuo agente AI dimentica tutto tra una sessione e l'altra. Questo sistema gli dà una base di conoscenza strutturata e auto-gestita — ogni pagina è contemporaneamente un documento leggibile e un vettore interrogabile.
+
+[Avvio rapido](#avvio-rapido) · [Funzionalità](#funzionalità) · [Ingestion PDF](#ingestion-pdf-multi-sorgente-v20) · [Integrazione](#integrazione) · [CLI Reference](#cli-reference)
 
 ---
 
-## Cos'è
+## Il problema
 
-AI Longterm Wiki Memory trasforma un agente AI da assistente con memoria volatile a **ricercatore con memoria permanente e strutturata**.
+Gli agenti AI dimenticano tutto tra una sessione e l'altra. I sistemi di memoria esistenti sono piatti — un mucchio di fatti con timestamp, non una base di conoscenza. Quando lavori su ricerche ricorrenti (letteratura accademica, analisi competitiva, trading, diritto), hai bisogno di conoscenza **organizzata, interconnessa e ricercabile semanticamente** — che cresce nel tempo senza bookkeeping manuale.
 
-L'agente può:
-- **Ingestionare** contenuti (URL, PDF, note) in pagine wiki ben organizzate
-- **Interrogare** la wiki con ricerca semantica vettoriale (embedding bge-m3, 1024 dim)
-- **Fare manutenzione** automatica — link rotti, entry orfane, rename di file
-- **Sintetizzare** nuove conoscenze incrociando più fonti wiki
+## Cosa fa
 
-Tutto questo accade in modo **atomico e sicuro**: ogni operazione scrive file `.tmp`, li promuove via script Python, e in caso di crash il sistema rileva lo stato anomalo alla sessione successiva.
+AI Longterm Wiki Memory dà al tuo agente una wiki a due livelli che gestisce autonomamente:
+
+| Livello | Directory | Scopo |
+|---------|-----------|-------|
+| Permanente | `wiki/` | Conoscenza curata: entità, concetti, pagine di sintesi |
+| Ricerca attiva | `wiki-works/<progetto>/` | Fonti grezze + pagine strutturate per dominio |
+
+L'agente ingestisce pagine web, articoli e PDF; recupera per significato semantico (non per parole chiave); rileva conoscenza obsoleta o contraddittoria; sintetizza nuove pagine automaticamente quando più fonti supportano un'inferenza non ovvia — tutto senza corrompere la base di conoscenza anche se un processo crasha a metà operazione.
+
+```
+Utente: "studia questo paper sulle architetture RAG"
+
+Agente: [INTENT: INGEST | WORKSPACE: ricerca | CERTEZZA: alta]
+        → scrive pagine strutturate come file .tmp
+        → wiki.py ingest: commit atomico staging → produzione
+        → markdown + embedding scritti nella stessa operazione
+        → "2 pagine scritte. Mini-lint: ok."
+
+Utente: "cosa sai sul retrieval-augmented generation?"
+
+Agente: [INTENT: QUERY | WORKSPACE: ricerca | CERTEZZA: alta]
+        → ricerca vettoriale semantica, nessuna scansione di file
+        → legge le pagine più rilevanti, sintetizza con citazioni
+        → sintesi supera la soglia → salvata automaticamente come nuova pagina wiki
+```
+
+---
+
+## L'idea centrale: wiki e vector DB come un'unica cosa
+
+> **Il pattern wiki di Karpathy** ([gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) prevede che l'LLM navighi la wiki *leggendo* i file markdown — ispezione visiva di una struttura di directory. Questo si rompe su larga scala: l'agente non può scansionare decine di pagine ad ogni query.
+
+Questo progetto risolve il problema con un'**architettura a doppia rappresentazione**: ogni pagina esiste in due forme sincronizzate.
+
+```
+  Scrivi una pagina wiki
+        │
+        ▼
+┌───────────────────┐     ┌──────────────────────────┐
+│  File Markdown    │     │  LanceDB vector store     │
+│  wiki/concepts/   │◄────►  embedding bge-m3         │
+│  rag.md           │     │  (1024-dim, indice HNSW)  │
+└───────────────────┘     └──────────────────────────┘
+   gli umani sfogliano        l'LLM recupera
+   l'LLM genera               semanticamente
+```
+
+Markdown e embedding sono **scritti atomicamente** e mantenuti sincronizzati. Il lint pass rileva e ripara qualsiasi deriva.
+
+Una query su *"come gli LLM gestiscono il contesto lungo"* recupera pagine su *"positional encoding"* e *"sliding window attention"* — senza alcuna sovrapposizione di parole chiave — perché il significato è vicino nello spazio degli embedding.
+
+---
+
+## Funzionalità
+
+### Ricerca vettoriale semantica
+Embedding [bge-m3](https://huggingface.co/BAAI/bge-m3) — multilingua (100+ lingue), 1024 dim, indice HNSW. Le query recuperano per significato. Nessun passo di re-indicizzazione. Il vector DB è l'indice, mantenuto continuamente.
+
+### Scritture atomiche — resistente ai crash
+Ogni ingest segue un pattern `.tmp → staging LanceDB → promozione atomica`. Un crash lascia il sistema in uno stato rilevabile (`in-progress` in `wiki-session.md`). L'agente si recupera alla sessione successiva senza perdita di dati, senza corruzione silenziosa.
+
+### Iniezione di contesto pre-prompt
+`wiki_context.py` esegue una ricerca vettoriale **prima di ogni messaggio dell'utente** e aggiunge un blocco `<wiki-context>` con le pagine più rilevanti. Questo elimina il principale failure mode degli approcci basati su skill — l'agente ottiene contesto solo quando classifica un messaggio come QUERY:
+
+```
+L'utente invia un messaggio
+        │
+        ▼
+wiki_context.py → ricerca vettoriale
+        │
+        ▼
+Blocco <wiki-context> aggiunto al prompt
+        │
+        ▼
+L'agente ha sempre il contesto rilevante — indipendente dalla classificazione dell'intent
+```
+
+Installazione con un comando (Claude Code):
+```bash
+py scripts/install_claude_hook.py --workspace /path/al/workspace
+```
+
+### Routing multi-progetto
+Definisci più domini di ricerca in `wiki.config.json` con liste di keyword. L'agente seleziona automaticamente il workspace corretto dal contenuto del messaggio — nessuna specifica manuale necessaria.
+
+### Sintesi automatica
+Quando una risposta a una query integra ≥2 fonti wiki, supera 300 token, e aggiunge inferenze non letterali, l'agente salva automaticamente una nuova pagina wiki con embedding. La conoscenza si accumula nel tempo.
+
+### Lint auto-riparante
+`wiki.py lint --full` rileva e ripara:
+- **Link wiki rotti** (`[[pagina]]` senza file corrispondente)
+- **Entry orfane LanceDB** (vettori per file eliminati — rimossi automaticamente)
+- **Rename** (file spostato → aggiorna path nel DB senza re-embedding tramite `content_hash`)
+- **Duplicati semantici** (cosine similarity > 0.95 tra pagine)
+
+### Index con budget token
+`index.md` rispetta un budget token configurabile (default 4000). Se superato, applica strategie di riduzione automaticamente — l'agente può navigare anche su context window limitate.
+
+---
+
+## Ingestion PDF multi-sorgente *(v2.0)*
+
+Qualsiasi PDF da qualsiasi sorgente converge in `pdf-inbox/` e viene processato automaticamente.
+
+```
+┌──────────────────┐   ┌──────────────────┐   ┌───────────────────┐
+│  Chat Telegram   │   │  CLI / URL       │   │  Drop manuale     │
+│  (allegato)      │   │  (ingest-pdf)    │   │  (filesystem)     │
+└────────┬─────────┘   └────────┬─────────┘   └────────┬──────────┘
+         │                      │                       │
+         └──────────────────────┼───────────────────────┘
+                                ▼
+                   workspace/pdf-inbox/
+                      paper.pdf
+                   .registry.json  ← hash SHA-256 per file
+                                │
+                   wiki.py scan-inbox
+                                │
+                   wiki_pdf_watcher.py
+                      extract_text (pdfplumber)
+                                │
+                                ▼
+             wiki-works/<progetto>/raw/paper.md
+             (frontmatter: source: pdf, original, extracted_at)
+                                │
+                                ▼
+                   L'agente struttura in pagine .tmp
+                                │
+                                ▼
+                   wiki.py ingest → wiki/ + LanceDB
+```
+
+**Come funziona il rilevamento delle modifiche:** hash SHA-256 per file. Stesso hash + `deposited` → salta. Hash diverso → riprocessa. Lo stato `pending` viene scritto prima dell'estrazione — un crash lascia il registro recuperabile.
+
+**Comandi:**
+```bash
+# File locale
+wiki.py ingest-pdf --workspace <path> --file paper.pdf
+
+# URL remoto (limite 50 MB)
+wiki.py ingest-pdf --workspace <path> --file https://arxiv.org/pdf/2401.00001
+
+# Scansiona l'intero inbox — idempotente, sicuro per cron
+wiki.py scan-inbox --workspace <path>
+```
+
+**Telegram / OpenClaw:** nessun nuovo plugin necessario. La regola agente in `AGENTS_PATCH.md` gestisce tutto:
+> Quando l'utente invia un PDF → chiama `wiki.py ingest-pdf --workspace <path> --file <attachment_path>`
+
+**PDF scansionati** (senza testo selezionabile) vengono segnalati con `status: failed` nel registro e saltati nelle scansioni future — nessun loop infinito di retry.
 
 ---
 
@@ -25,22 +177,22 @@ Tutto questo accade in modo **atomico e sicuro**: ogni operazione scrive file `.
 ```
 workspace/
 ├── skills/
-│   └── wiki-core.md          ← skill permanente che guida l'agente
-├── wiki-session.md           ← stato sessione corrente (generato da wiki.py)
+│   └── wiki-core.md          ← skill permanente: classificazione intent, workflow
+├── wiki-session.md           ← stato sessione live (generato da wiki.py)
 ├── wiki.config.json          ← configurazione
 ├── scripts/
-│   ├── wiki.py               ← entry point CLI
-│   ├── wiki_context.py       ← iniettore di contesto pre-prompt (hook)
-│   ├── wiki_pdf_watcher.py   ← scanner PDF inbox (hash detection + pdfplumber)
-│   ├── wiki_embed.py         ← chunking + embedding bge-m3
+│   ├── wiki.py               ← entry point CLI unificato (8 comandi)
+│   ├── wiki_context.py       ← iniettore contesto pre-prompt (hook)
+│   ├── wiki_pdf_watcher.py   ← scanner inbox PDF (hash detection + pdfplumber)
+│   ├── wiki_embed.py         ← chunking boundary-aware + embedding bge-m3
 │   ├── wiki_lancedb.py       ← operazioni LanceDB (upsert, staging, rename)
 │   └── wiki_index.py         ← generazione index.md con budget token
-├── pdf-inbox/                ← nuovo: tutte le sorgenti PDF convergono qui
+├── pdf-inbox/                ← tutte le sorgenti PDF convergono qui
 │   └── .registry.json        ← hash + status per PDF (scrittura atomica)
-├── wiki/                     ← conoscenza permanente
-│   ├── entities/
-│   ├── concepts/
-│   └── synthesis/
+├── wiki/                     ← base di conoscenza permanente
+│   ├── entities/             ← persone, strumenti, organizzazioni
+│   ├── concepts/             ← teorie, strategie, definizioni
+│   └── synthesis/            ← inferenze cross-fonte
 ├── wiki-works/               ← ricerche attive per progetto
 │   └── <progetto>/
 │       ├── raw/              ← fonti grezze e PDF estratti
@@ -48,148 +200,147 @@ workspace/
 │       ├── concepts/
 │       └── synthesis/
 └── memory/
-    └── lancedb/              ← database vettoriale (escluso da git)
+    └── lancedb/              ← database vettoriale (escluso da git, ricostruibile)
 ```
 
-**Invariante fondamentale:** l'agente non scrive mai direttamente nel wiki. Tutto passa per `wiki.py`. La skill `wiki-core.md` guida il *quando* e il *perché*; gli script gestiscono il *come*.
+**Invariante fondamentale:** L'agente non scrive mai direttamente nel wiki. Tutto passa per `wiki.py`. La skill guida il *quando* e il *perché*; gli script gestiscono il *come*.
 
 ---
 
-## Integrazione con OpenClaw
+## Integrazione
 
-[OpenClaw](https://github.com/openclaw/openclaw) è un gateway AI self-hosted che collega canali di messaggistica (Telegram, Discord, web) a agenti AI con accesso a strumenti: `bash`, `read`, `write`, `edit`, `browser`.
+Funziona con qualsiasi agente che può leggere file e chiamare bash. Supporto nativo per Claude Code e OpenClaw.
 
-Con AI Longterm Wiki Memory, un agente OpenClaw diventa un **ricercatore con memoria a lungo termine**:
+### Claude Code
 
-### Come funziona in una sessione tipica
-
-**L'utente scrive:** *"studia questo articolo su transformer models — link"*
-
-**L'agente:**
-1. Legge `wiki-session.md` → status ok, nessun problema pendente
-2. Classifica: `[INTENT: INGEST | WORKSPACE: ricerca | CERTEZZA: alta]`
-3. Esegue `web_fetch` sull'URL, salva in `wiki-works/ricerca/raw/`
-4. Scrive le nuove pagine come file `.tmp`:
-   - `concepts/transformer-architecture.md.tmp`
-   - `entities/attention-mechanism.md.tmp`
-5. Chiama `wiki.py ingest` per il commit atomico
-6. Riferisce: "Salvate 2 pagine. Nessun conflitto con la wiki esistente."
-
-**L'utente chiede:** *"cosa sai dei transformer?"*
-
-**L'agente:**
-1. Classifica: `[INTENT: QUERY | WORKSPACE: ricerca | CERTEZZA: alta]`
-2. Chiama `wiki.py query --q "transformer models"` → top-5 chunk semanticamente simili
-3. Legge le pagine pertinenti
-4. Sintetizza la risposta con riferimenti alle pagine wiki
-
-### Configurazione in OpenClaw
-
-1. Copia `skills/wiki-core.md` nella directory `skills/` del tuo workspace OpenClaw
-2. Aggiungi in `AGENTS.md`:
-   ```
-   All'inizio di ogni sessione leggi <workspace>/wiki-session.md per il contesto wiki corrente.
-   Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md per verificare il protocollo.
-   ```
-3. Configura `wiki.config.json` con i tuoi progetti
-4. Inizializza: `py scripts/wiki.py rebuild --workspace <path>`
-5. (Consigliato) Configura l'hook di iniezione: vedi il passo 5 nella sezione [OpenClaw Integration](README.md#openclaw-integration) del README principale
-
----
-
-## Potenzialità
-
-### Memoria semantica, non solo full-text
-
-La ricerca usa embedding [bge-m3](https://huggingface.co/BAAI/bge-m3) (multilingua, 1024 dimensioni). Una query su *"come funziona l'attenzione nei LLM"* trova pagine che parlano di *"self-attention mechanism"* anche se non contengono quelle parole esatte.
-
-### Multi-progetto con selezione automatica
-
-Puoi avere progetti separati (trading, ricerca, diritto, medicina) con keyword distinte. L'agente seleziona automaticamente il workspace corretto in base al contenuto del messaggio — senza che tu debba specificarlo ogni volta.
-
-### Sintesi automatica
-
-Se una risposta a una query integra ≥2 fonti wiki, supera 300 token, e aggiunge inferenze non letterali, l'agente la salva automaticamente come nuova pagina wiki. La conoscenza si accumula e si interconnette nel tempo.
-
-### Atomicità e resistenza ai crash
-
-Ogni ingest usa un pattern `.tmp` → staging LanceDB → promozione atomica. Se il processo crasha a metà:
-- Il lock file `.wiki-lock` segnala lo stato
-- `wiki-session.md` rimane su `status: in-progress`
-- L'agente lo rileva alla sessione successiva e avvisa prima di fare qualsiasi cosa
-
-### Manutenzione automatica (`lint --full`)
-
-- Rileva **link wiki rotti** (`[[pagina]]` che non esiste)
-- Rimuove **entry orfane** da LanceDB (file eliminato ma vettore rimasto)
-- Detecta **rename**: se un file è stato rinominato, aggiorna il percorso nel DB senza re-embedding (confronto `content_hash`)
-
-### Budget token per l'index
-
-`index.md` rispetta un budget configurabile (default 4000 token). Se superato, applica automaticamente strategie di riduzione: prima rimuove le descrizioni, poi crea index separati per categoria. L'agente può sempre navigare la wiki anche su context window limitate.
-
-### Ingestione PDF multi-sorgente *(v2.0)*
-
-Qualsiasi PDF — inviato via Telegram, CLI, URL o depositato manualmente nella cartella — entra attraverso `pdf-inbox/` e viene estratto automaticamente da `wiki_pdf_watcher.py` tramite pdfplumber. Il confronto SHA-256 garantisce che i PDF vengano ri-processati solo quando il contenuto cambia effettivamente. I PDF scansionati (senza testo selezionabile) vengono segnalati e saltati. Il testo estratto viene depositato come file `.md` con frontmatter YAML in `wiki-works/<progetto>/raw/` — pronto per essere strutturato in pagine wiki dall'agente.
-
+**Iniezione contesto — un solo comando:**
 ```bash
-wiki.py ingest-pdf --workspace <path> --file paper.pdf        # file locale
-wiki.py ingest-pdf --workspace <path> --file https://...      # URL (limite 50 MB)
-wiki.py scan-inbox --workspace <path>                         # processa tutti i PDF in coda
+py scripts/install_claude_hook.py --workspace /path/assoluto/al/workspace
+```
+Scrive l'hook `UserPromptSubmit` in `.claude/settings.json`. Idempotente — sicuro da rieseguire. Riavvia Claude Code per attivare.
+
+Opzioni: `--k 5` (più pagine), `--python python3` (non-Windows), `--dry-run` (anteprima).
+
+**Aggiungi a `CLAUDE.md`:**
+```
+All'inizio di ogni sessione leggi <workspace>/wiki-session.md.
+Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md.
 ```
 
-L'agente gestisce gli allegati Telegram automaticamente — nessun nuovo plugin necessario. Il comando `scan-inbox` è idempotente: sicuro da eseguire come cron job.
+### OpenClaw
 
-### Iniezione di contesto pre-prompt *(v1.1)*
+[OpenClaw](https://github.com/openclaw/openclaw) connette Telegram, Discord e web ad agenti AI con accesso bash/file/browser sul filesystem locale.
 
-`wiki_context.py` esegue una ricerca vettoriale **prima che ogni messaggio dell'utente raggiunga l'agente** e inietta un blocco `<wiki-context>` con le pagine più rilevanti. Questo elimina il principale failure mode degli approcci basati su skill: l'instruction drift che porta l'agente a ignorare la wiki sugli intent non-QUERY.
-
-```
-L'utente invia un messaggio
-        │
-        ▼
-wiki_context.py esegue la ricerca vettoriale
-        │
-        ▼
-Blocco <wiki-context> iniettato nel prompt
-        │
-        ▼
-L'agente ha sempre il contesto rilevante — indipendentemente dalla classificazione dell'intent
+**Plugin iniezione contesto:**
+```bash
+cd plugins/wiki-context-plugin
+npm install && npm run build
+openclaw plugins install local:./plugins/wiki-context-plugin
 ```
 
-Si configura come hook `UserPromptSubmit` (Claude Code) o plugin TypeScript `before_prompt_build` (OpenClaw) — vedi la sezione [OpenClaw Integration](README.md#openclaw-integration) per il setup. Lo script termina sempre con exit 0 — non blocca mai un prompt.
+Aggiungi al config OpenClaw:
+```json
+{ "plugins": { "allow": ["wiki-context-plugin"] } }
+```
+
+Settings plugin:
+```json
+{
+  "wiki-context-plugin": {
+    "workspace": "/path/assoluto/al/workspace",
+    "wikiContextScript": "/path/assoluto/scripts/wiki_context.py",
+    "pythonExecutable": "python",
+    "k": 3
+  }
+}
+```
+
+### Cosa fa l'agente automaticamente
+
+| L'utente scrive | L'agente fa |
+|-----------------|-------------|
+| URL / "studia questo" / file allegato | INGEST: fetch → struttura → scrittura atomica + embedding |
+| PDF via Telegram / CLI / URL | INGEST-PDF: inbox → estrai → deposita in raw/ → struttura |
+| Domanda diretta / "spiegami" / "cosa sai di" | QUERY: ricerca vettoriale → legge pagine → sintetizza |
+| "controlla il wiki" / "manutenzione" | LINT: link rotti, orfani, rename, duplicati semantici |
+| Ambiguo | Fa una sola domanda di chiarimento, non azzarda mai |
+
+L'agente emette sempre una riga di classificazione prima di agire — puoi correggerla prima dell'esecuzione:
+```
+[INTENT: INGEST | WORKSPACE: ricerca | CERTEZZA: alta]
+```
+
+### Stato sessione
+
+`wiki-session.md` (gestito esclusivamente da `wiki.py`) traccia:
+- Status: `ok` / `in-progress` / `needs-repair` / `partial-failure`
+- Ultima operazione: tipo, timestamp, dettaglio
+- Workspace attivo e conteggio pagine
+
+Se l'agente trova `in-progress` all'inizio della sessione, avvisa prima di fare qualsiasi cosa.
 
 ---
 
-## Installazione
+## Avvio rapido
 
 ### Requisiti
 
 - Python 3.10+
-- `pip install -r requirements.txt`
+- ~2 GB disco (modello BAAI/bge-m3, scaricato automaticamente al primo avvio)
 
-### Setup
+### Installazione
 
 ```bash
-# Clona il repo
 git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory
 cd ai-longterm-wiki-memory
-
-# Installa dipendenze
 pip install -r requirements.txt
-
-# Copia e configura
-cp wiki.config.json my-workspace/wiki.config.json
-# Modifica workspace, projects, thresholds
-
-# Inizializza il database vettoriale
-py scripts/wiki.py rebuild --workspace my-workspace/
 ```
 
-### Test
+### Configurazione
 
 ```bash
-cd ai-longterm-wiki-memory
+cp wiki.config.json my-workspace/wiki.config.json
+# Modifica: imposta il path del workspace, aggiungi i tuoi progetti e le keyword
+```
+
+Config minimale:
+```json
+{
+  "workspace": "/path/al/tuo/workspace",
+  "pdf_inbox": {
+    "project_default": "ricerca"
+  },
+  "projects": {
+    "ricerca": {
+      "path": "wiki-works/ricerca",
+      "keywords": ["paper", "studio", "articolo", "revisione"]
+    }
+  },
+  "thresholds": {
+    "index_token_budget": 4000,
+    "staleness_days": 90,
+    "similarity_merge": 0.95,
+    "similarity_orphan": 0.50,
+    "synthesis_min_tokens": 300,
+    "synthesis_min_sources": 2,
+    "chunk_size_tokens": 512,
+    "chunk_overlap_tokens": 64,
+    "page_chunk_threshold_tokens": 1500,
+    "quality_filter_min_score": 6
+  },
+  "lancedb": {
+    "path": "memory/lancedb",
+    "embedding_model": "BAAI/bge-m3"
+  }
+}
+```
+
+> **`pdf_inbox.project_default`** — dove vanno i PDF quando il filename non corrisponde alle keyword di nessun progetto. Se omesso, usa il primo progetto definito nel config.
+
+### Inizializza e testa
+
+```bash
+py scripts/wiki.py rebuild --workspace my-workspace/
 pytest tests/ -v
 # Atteso: 56 test passati
 ```
@@ -206,72 +357,31 @@ wiki.py <comando> [argomenti]
   lint           --workspace <path> [--full]
   index          --workspace <path>
   rebuild        --workspace <path>
-  session-update --workspace <path> --op <tipo> --status <ok|failed|in-progress|partial-failure> [--detail <json>]
+  session-update --workspace <path> --op <tipo>
+                   --status <ok|failed|in-progress|partial-failure> [--detail <json>]
   scan-inbox     --workspace <path>
   ingest-pdf     --workspace <path> --file <path-locale|url>
 
-wiki_context.py [hook — emette un blocco <wiki-context> su stdout]
-
-  --workspace    <path>    workspace contenente wiki.config.json
-  --q            <stringa> testo della query (il prompt utente)
-  --k            <intero>  numero di pagine da restituire (default: 3)
-  --max-chars    <intero>  caratteri massimi per estratto pagina (default: 600)
+wiki_context.py  (hook — emette blocco <wiki-context> su stdout)
+  --workspace <path>  --q <stringa>  [--k 3]  [--max-chars 600]
 ```
 
 Ogni comando produce JSON su stdout:
-
 ```json
-{ "status": "ok", "op": "ingest", "pages_written": 2, "conflicts": [], "mini_lint": "ok" }
-{ "status": "error", "code": "lock_exists", "message": "...", "recoverable": true }
+{ "status": "ok",   "op": "ingest",     "pages_written": 2, "mini_lint": "ok" }
+{ "status": "ok",   "op": "scan-inbox", "processed": 1, "skipped": 0, "failed": 0,
+  "deposited": ["wiki-works/ricerca/raw/paper.md"], "failures": [] }
+{ "status": "error","code": "lock_exists", "message": "...", "recoverable": true }
 ```
-
----
-
-## Configurazione
-
-```json
-{
-  "workspace": "/path/to/workspace",
-  "pdf_inbox": {
-    "project_default": "ricerca"
-  },
-  "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni"]
-    },
-    "ricerca": {
-      "path": "wiki-works/ricerca",
-      "keywords": ["paper", "studio", "PRISMA", "articolo", "ricerca"]
-    }
-  },
-  "thresholds": {
-    "index_token_budget": 4000,
-    "staleness_days": 90,
-    "similarity_merge": 0.95,
-    "synthesis_min_tokens": 300,
-    "synthesis_min_sources": 2,
-    "chunk_size_tokens": 512,
-    "chunk_overlap_tokens": 64,
-    "page_chunk_threshold_tokens": 1500,
-    "quality_filter_min_score": 6
-  },
-  "lancedb": {
-    "path": "memory/lancedb",
-    "embedding_model": "BAAI/bge-m3"
-  }
-}
-```
-
-> **`pdf_inbox.project_default`** — il progetto in cui vengono depositati i PDF quando il filename non corrisponde alle keyword di nessun progetto. Se omesso, il sistema usa il primo progetto definito nel config, che potrebbe non essere quello desiderato.
 
 ---
 
 ## Documentazione
 
-- [`DESIGN.md`](DESIGN.md) — architettura dettagliata, workflow, schema LanceDB
-- [`SPEC.md`](SPEC.md) — specifiche implementative, stati di errore, integrazione OpenClaw
+- [`DESIGN.md`](DESIGN.md) — architettura completa, workflow, schema LanceDB, risoluzione conflitti
+- [`SPEC.md`](SPEC.md) — spec implementativa, tabella stati di errore, dettagli integrazione
 - [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
+- [`AGENTS_PATCH.md`](AGENTS_PATCH.md) — testo esatto da aggiungere a `AGENTS.md` o `CLAUDE.md`
 
 ---
 
@@ -279,49 +389,57 @@ Ogni comando produce JSON su stdout:
 
 ### v2.0 — 2026-05-22
 
-**Novità: Ingestione PDF multi-sorgente**
+**Novità: Ingestion PDF multi-sorgente**
+- `scripts/wiki_pdf_watcher.py` — rilevamento modifiche SHA-256, estrazione pdfplumber, registro atomico, crash recovery tramite stato `pending`
+- Nuovi CLI: `scan-inbox` e `ingest-pdf --file <path|url>` (limite 50 MB, sanitizzazione path)
+- `pdf-inbox/` punto di convergenza — Telegram, CLI, URL e drop manuali unificati
+- Nessun nuovo plugin OpenClaw per allegati Telegram
+- `partial-failure` aggiunto come status valido in session-update
 
-- `scripts/wiki_pdf_watcher.py` — nuovo modulo per gestione inbox PDF:
-  - Rilevamento modifiche via hash SHA-256 con `.registry.json` atomico
-  - Estrazione testo con pdfplumber; crash recovery tramite stato `pending`
-  - `deposit_raw`: deposita testo estratto in `wiki-works/<progetto>/raw/` con frontmatter YAML (`source: pdf`)
-  - `scan_inbox`: idempotente, sicuro per cron, gestisce failure per-file
-- Nuovi comandi CLI in `wiki.py`:
-  - `scan-inbox --workspace <path>` — scansiona `pdf-inbox/` per PDF nuovi/modificati
-  - `ingest-pdf --workspace <path> --file <path|url>` — ingest da file locale o URL
-- Cartella `pdf-inbox/` alla radice del workspace — punto di convergenza per Telegram, CLI e drop manuali
-- Nessun nuovo plugin OpenClaw necessario — la regola agent copre gli allegati Telegram
-- `partial-failure` aggiunto come status valido in `session-update`
-
-**Fix robustezza**
-- `rel_final` in `cmd_ingest`: strip `.tmp` solo come suffisso — previene corruzione path con directory contenenti `.tmp`
-- `cmd_ingest`: `sys.exit(1)` su fallimento lock (era return silenzioso)
-- `cmd_ingest_pdf`: limite 50 MB su download URL
-- `deposit_raw`: sanitizzazione filename + assert confinamento path (path traversal)
-- `cmd_session_update`: `json.JSONDecodeError` gestito con risposta errore strutturata
+**Fix robustezza (revisione pre-release)**
+- `cmd_ingest`: strip `.tmp` solo come suffisso; `sys.exit(1)` su lock failure
+- `cmd_ingest_pdf`: limite 50 MB; protezione path traversal su filename
+- `cmd_session_update`: errore strutturato su JSON `--detail` malformato
 - Lista `deposited` ora contiene path relativi completi, non basename
 
-**Testing**
-- 21 nuovi test per `wiki_pdf_watcher` (56 totali, tutti green)
-- `conftest.py` aggiornato con fixture `pdf-inbox` e config `project_default`
+**Test:** 21 nuovi unit test per `wiki_pdf_watcher` — 56 totali, tutti green
+
+---
+
+### v1.1.1 — 2026-05-21
+
+**Novità:** `scripts/install_claude_hook.py` — installer dell'hook `UserPromptSubmit` per Claude Code in un solo comando. Auto-rileva l'eseguibile Python, idempotente, supporta `--dry-run`.
+
+**Bug fix — core Python**
+- **[CRITICO]** `wiki_lancedb.py`: `table_names()` deprecato — corretto a `.list_tables().tables`
+- **[ALTO]** `wiki_workflows.py` `cmd_ingest`: fallimento `shutil.move` a metà loop lasciava file senza vettori — tracciati e ripristinati su eccezione
+- **[MEDIO]** `cmd_lint`: rilevamento rename limitato a `wiki/` e `wiki-works/`
+- **[MEDIO]** `install_claude_hook.py`: scrittura atomica per `settings.json`
+
+**Bug fix — plugin OpenClaw**
+- **[CRITICO]** `src/index.ts`: `api.getConfig()` non esiste — corretto a `api.config`
+- **[ALTO]** Output build copiato alla root del plugin per risoluzione corretta da OpenClaw
 
 ---
 
 ### v1.1.0 — 2026-05-21
 
-**Novità: Iniezione di contesto pre-prompt**
-- `scripts/wiki_context.py` — nuovo script che esegue una ricerca vettoriale prima di ogni prompt e inietta un blocco `<wiki-context>`. Elimina l'instruction drift come failure mode: l'agente ha sempre il contesto wiki rilevante indipendentemente dalla classificazione dell'intent.
-- `skills/wiki-core.md` — nuova sezione `§injected-context`; checklist aggiornata per usare il blocco iniettato come priorità rispetto alle chiamate manuali a `wiki.py query`.
-- `AGENTS_PATCH.md` — aggiunte istruzioni comportamentali per l'agente sull'uso del blocco `<wiki-context>` iniettato.
-- `plugins/wiki-context-plugin/` — plugin TypeScript pronto all'uso per OpenClaw.
+**Novità:** `scripts/wiki_context.py` — iniezione contesto pre-prompt. Esegue ricerca vettoriale prima di ogni messaggio e aggiunge `<wiki-context>`. Elimina l'instruction drift come failure mode.
 
 **Bug fix**
-- **[CRITICO]** `wiki_index.py`: `_build_full()` e `_build_slugs_only()` referenziavano `wiki_dir` come globale implicito — era una variabile locale del chiamante. Ogni chiamata a `rebuild_index()` (comandi INGEST, INDEX) crashava con `NameError`. Risolto passando `wiki_dir` come parametro esplicito.
-- **[MEDIO]** `wiki_workflows.py`: `cmd_index` scriveva `index.md` senza verificare che `wiki/` esistesse, causando `FileNotFoundError` su workspace nuovi. Risolto con `os.makedirs(wiki_dir, exist_ok=True)`.
-- **[BASSO]** `wiki_context.py`: il controllo "tabella vuota" caricava l'intera tabella LanceDB in un DataFrame pandas. Rimosso — i risultati di ricerca vuoti vengono già gestiti a valle.
+- **[CRITICO]** `wiki_index.py`: `rebuild_index()` crashava con `NameError` ad ogni chiamata — `wiki_dir` aggiunto come parametro esplicito
+- **[MEDIO]** `cmd_index`: `FileNotFoundError` su workspace vuoti — risolto con `os.makedirs`
 
 ---
 
 ## Licenza
 
-MIT
+AGPL-3.0 — chiunque distribuisca o esegua il software come servizio deve condividere il codice sorgente.
+
+---
+
+<div align="center">
+
+Funziona con [Claude Code](https://claude.ai/code) e [OpenClaw](https://github.com/openclaw/openclaw) · Embedding da [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store da [LanceDB](https://lancedb.github.io/lancedb/)
+
+</div>
