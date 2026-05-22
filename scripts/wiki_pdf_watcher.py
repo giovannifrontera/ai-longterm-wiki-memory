@@ -50,7 +50,14 @@ def save_registry(workspace: str, data: dict) -> None:
 
 
 def extract_text(pdf_path: str) -> str:
-    raise NotImplementedError
+    """Estrae testo da PDF. Ritorna stringa vuota se nessun testo selezionabile."""
+    text_parts = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text_parts.append(page_text)
+    return "\n\n".join(text_parts)
 
 
 def deposit_raw(text: str, pdf_name: str, workspace: str, cfg: dict) -> str:

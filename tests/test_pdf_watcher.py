@@ -62,3 +62,36 @@ def test_registry_atomic_write_leaves_no_tmp_files(tmp_workspace):
     save_registry(str(tmp_workspace), {"paper1.pdf": {"status": "deposited"}})
     tmp_files = list((tmp_workspace / "pdf-inbox").glob(".registry.*.tmp"))
     assert tmp_files == []
+
+
+# ── extract_text tests ───────────────────────────────────────────────────────
+
+def test_extract_text_returns_text_from_pages(sample_pdf):
+    from wiki_pdf_watcher import extract_text
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Hello World\nSecond line"
+    with patch("wiki_pdf_watcher.pdfplumber") as mock_plumber:
+        mock_plumber.open.return_value.__enter__.return_value.pages = [mock_page]
+        result = extract_text(str(sample_pdf))
+    assert "Hello World" in result
+    assert "Second line" in result
+
+def test_extract_text_joins_pages_with_double_newline(sample_pdf):
+    from wiki_pdf_watcher import extract_text
+    page1 = MagicMock()
+    page1.extract_text.return_value = "Page one text"
+    page2 = MagicMock()
+    page2.extract_text.return_value = "Page two text"
+    with patch("wiki_pdf_watcher.pdfplumber") as mock_plumber:
+        mock_plumber.open.return_value.__enter__.return_value.pages = [page1, page2]
+        result = extract_text(str(sample_pdf))
+    assert result == "Page one text\n\nPage two text"
+
+def test_scanned_pdf_no_text_returns_empty_string(sample_pdf):
+    from wiki_pdf_watcher import extract_text
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = None
+    with patch("wiki_pdf_watcher.pdfplumber") as mock_plumber:
+        mock_plumber.open.return_value.__enter__.return_value.pages = [mock_page]
+        result = extract_text(str(sample_pdf))
+    assert result == ""
