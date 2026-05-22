@@ -249,7 +249,6 @@ def cmd_scan_inbox(args, cfg):
 
 
 def cmd_ingest_pdf(args, cfg):
-    import shutil
     import urllib.request
     from wiki_pdf_watcher import scan_inbox
 
