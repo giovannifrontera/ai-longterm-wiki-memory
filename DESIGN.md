@@ -1,4 +1,4 @@
-# 🧠 AI Wiki System — Design Document v2
+# 🧠 AI Longterm Wiki Memory — Design Document v2
 
 > Based on Andrej Karpathy's pattern (llm-wiki), adapted for Linux CLI, autonomous,
 > with semantic topology via bge-m3 vector embeddings and LanceDB.

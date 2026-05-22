@@ -1,4 +1,4 @@
-# AI Wiki System — Implementation Spec
+# AI Longterm Wiki Memory — Implementation Spec
 > Reviewed by Claude Code — 2026-05-20
 
 ---

@@ -1,7 +1,7 @@
 {
   "id": "wiki-context-plugin",
   "name": "Wiki Context Injector",
-  "description": "Injects relevant wiki pages into every prompt via before_prompt_build. Requires wiki_context.py from ai-wiki-system.",
+  "description": "Injects relevant wiki pages into every prompt via before_prompt_build. Requires wiki_context.py from ai-longterm-wiki-memory.",
   "main": "index.js",
   "contracts": {
     "tools": [],
@@ -22,7 +22,7 @@
       },
       "wikiContextScript": {
         "type": "string",
-        "description": "Absolute path to wiki_context.py (e.g. /path/to/ai-wiki-system/scripts/wiki_context.py)"
+        "description": "Absolute path to wiki_context.py (e.g. /path/to/ai-longterm-wiki-memory/scripts/wiki_context.py)"
       },
       "pythonExecutable": {
         "type": "string",

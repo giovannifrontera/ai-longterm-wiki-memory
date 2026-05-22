@@ -1,4 +1,4 @@
-# Roadmap — AI Wiki System
+# Roadmap — AI Longterm Wiki Memory
 
 Future development ideas, not yet scheduled. Ordered by estimated priority.
 

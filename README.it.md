@@ -1,4 +1,4 @@
-# AI Wiki System
+# AI Longterm Wiki Memory
 
 [![Version](https://img.shields.io/badge/versione-1.1.0-informational)](CHANGELOG.md)
 
@@ -8,7 +8,7 @@ Un sistema di memoria wiki semantica per agenti AI — progettato per funzionare
 
 ## Cos'è
 
-AI Wiki System trasforma un agente AI da assistente con memoria volatile a **ricercatore con memoria permanente e strutturata**.
+AI Longterm Wiki Memory trasforma un agente AI da assistente con memoria volatile a **ricercatore con memoria permanente e strutturata**.
 
 L'agente può:
 - **Ingestionare** contenuti (URL, PDF, note) in pagine wiki ben organizzate
@@ -56,7 +56,7 @@ workspace/
 
 [OpenClaw](https://github.com/openclaw/openclaw) è un gateway AI self-hosted che collega canali di messaggistica (Telegram, Discord, web) a agenti AI con accesso a strumenti: `bash`, `read`, `write`, `edit`, `browser`.
 
-Con AI Wiki System, un agente OpenClaw diventa un **ricercatore con memoria a lungo termine**:
+Con AI Longterm Wiki Memory, un agente OpenClaw diventa un **ricercatore con memoria a lungo termine**:
 
 ### Come funziona in una sessione tipica
 
@@ -157,8 +157,8 @@ Si configura come hook `UserPromptSubmit` (Claude Code) o plugin TypeScript `bef
 
 ```bash
 # Clona il repo
-git clone https://github.com/giovannifrontera/ai-wiki-system
-cd ai-wiki-system
+git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory
+cd ai-longterm-wiki-memory
 
 # Installa dipendenze
 pip install -r requirements.txt
@@ -174,7 +174,7 @@ py scripts/wiki.py rebuild --workspace my-workspace/
 ### Test
 
 ```bash
-cd ai-wiki-system
+cd ai-longterm-wiki-memory
 pytest tests/ -v
 # Atteso: 37 test passati
 ```

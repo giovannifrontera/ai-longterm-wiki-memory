@@ -1,6 +1,6 @@
 <div align="center">
 
-# AI Wiki System
+# AI Longterm Wiki Memory
 
 **Semantic long-term memory for AI agents**
 
@@ -24,9 +24,9 @@ AI agents forget everything between sessions. Personal memory systems exist, but
 
 When you work on recurring research (trading signals, academic literature, competitive analysis, legal cases), you need something more: **organized, interconnected, semantically searchable knowledge** that persists and grows over time.
 
-## What AI Wiki System does
+## What AI Longterm Wiki Memory does
 
-AI Wiki System gives your agent a two-level wiki it can maintain autonomously:
+AI Longterm Wiki Memory gives your agent a two-level wiki it can maintain autonomously:
 
 - **`wiki/`** — permanent, curated knowledge (entities, concepts, synthesis pages)
 - **`wiki-works/<project>/`** — active research per domain (raw sources + structured pages)
@@ -56,7 +56,7 @@ Agent: [INTENT: QUERY | WORKSPACE: research | CONFIDENCE: high]
 
 > **Karpathy's original pattern** ([gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) assumed the LLM would navigate the wiki by *reading* its markdown files — essentially visual inspection of a directory structure. This works for small wikis but breaks down at scale: the agent cannot scan dozens of pages on every query.
 
-AI Wiki System solves this with a **dual-representation architecture**: every wiki page is two things at once.
+AI Longterm Wiki Memory solves this with a **dual-representation architecture**: every wiki page is two things at once.
 
 ```
   Write a wiki page
@@ -163,7 +163,7 @@ workspace/
 
 [OpenClaw](https://github.com/openclaw/openclaw) is a self-hosted AI agent gateway that connects messaging channels (Telegram, Discord, web) to AI agents with tool access: `bash`, `read`, `write`, `edit`, `browser` on the host filesystem.
 
-AI Wiki System is designed as a first-class OpenClaw extension:
+AI Longterm Wiki Memory is designed as a first-class OpenClaw extension:
 
 ### Setup (5 minutes)
 
@@ -238,7 +238,7 @@ Configure in OpenClaw plugin settings:
 {
   "wiki-context-plugin": {
     "workspace": "/absolute/path/to/workspace",
-    "wikiContextScript": "/absolute/path/to/ai-wiki-system/scripts/wiki_context.py",
+    "wikiContextScript": "/absolute/path/to/ai-longterm-wiki-memory/scripts/wiki_context.py",
     "pythonExecutable": "python",
     "k": 3
   }
@@ -275,13 +275,13 @@ If the agent finds `in-progress` at session start, it warns before doing anythin
 
 ## Origins & Inspiration
 
-AI Wiki System is inspired by the **LLM Wiki Pattern** described by [Andrej Karpathy](https://karpathy.ai/) in his gist [*"llm-wiki: a pattern for persistent, LLM-maintained knowledge bases"*](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+AI Longterm Wiki Memory is inspired by the **LLM Wiki Pattern** described by [Andrej Karpathy](https://karpathy.ai/) in his gist [*"llm-wiki: a pattern for persistent, LLM-maintained knowledge bases"*](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
 Karpathy's core insight: instead of re-deriving knowledge on every query (classic RAG), an LLM should *maintain* a persistent wiki — a structured set of markdown files it builds, updates, and cross-references over time. The tedious part of maintaining a knowledge base is not the reading or the thinking — it's the bookkeeping. LLMs handle bookkeeping well; humans don't.
 
 ### How this project differs
 
-| Dimension | Karpathy's pattern | AI Wiki System |
+| Dimension | Karpathy's pattern | AI Longterm Wiki Memory |
 |-----------|-------------------|----------------|
 | **Form** | Conceptual pattern — prose + guidelines | Full Python implementation with CLI |
 | **Retrieval** | LLM reads/scans markdown files visually | Semantic vector search — LLM never scans files |
@@ -298,9 +298,9 @@ Karpathy's core insight: instead of re-deriving knowledge on every query (classi
 
 ### Key architectural differences
 
-**Dual-representation by design** — Karpathy's pattern treats the wiki as a file system the agent reads. AI Wiki System treats every page as having two synchronized representations: markdown for humans and generation, vectors for retrieval. These are written together, maintained together, and linted together. There is no gap between "what's in the files" and "what's searchable."
+**Dual-representation by design** — Karpathy's pattern treats the wiki as a file system the agent reads. AI Longterm Wiki Memory treats every page as having two synchronized representations: markdown for humans and generation, vectors for retrieval. These are written together, maintained together, and linted together. There is no gap between "what's in the files" and "what's searchable."
 
-**Two-level wiki** — Karpathy proposes a single wiki directory. AI Wiki System separates permanent curated knowledge (`wiki/`) from active project research (`wiki-works/<project>/`). Research noise never pollutes the stable knowledge base.
+**Two-level wiki** — Karpathy proposes a single wiki directory. AI Longterm Wiki Memory separates permanent curated knowledge (`wiki/`) from active project research (`wiki-works/<project>/`). Research noise never pollutes the stable knowledge base.
 
 **No direct agent writes** — The agent never writes to the wiki directly. Everything goes through `wiki.py`. This single invariant eliminates the class of corruption bugs where agents write partial or malformed pages.
 
@@ -329,8 +329,8 @@ Karpathy's core insight: instead of re-deriving knowledge on every query (classi
 ### Install
 
 ```bash
-git clone https://github.com/giovannifrontera/ai-wiki-system
-cd ai-wiki-system
+git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory
+cd ai-longterm-wiki-memory
 pip install -r requirements.txt
 ```
 

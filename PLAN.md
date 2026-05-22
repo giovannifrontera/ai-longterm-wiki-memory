@@ -1,8 +1,8 @@
-# AI Wiki System — Piano di Implementazione
+# AI Longterm Wiki Memory — Piano di Implementazione
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implementare il AI Wiki System: script Python per embedding/LanceDB/index + skill OpenClaw per Agent.
+**Goal:** Implementare il AI Longterm Wiki Memory: script Python per embedding/LanceDB/index + skill OpenClaw per Agent.
 
 **Architecture:** Layer ibrido — `wiki-core.md` guida le decisioni di Agent, `wiki.py` gestisce tutta la persistenza atomica. Agent scrive pagine come file `.tmp`, poi delega a `wiki.py` per il commit atomico (embed → staging → promozione → index → log → mini-lint).
 
@@ -220,7 +220,7 @@ Atteso: `ImportError` o `ModuleNotFoundError` (wiki.py non esiste).
 
 ```python
 #!/usr/bin/env python3
-"""AI Wiki System — entry point CLI."""
+"""AI Longterm Wiki Memory — entry point CLI."""
 
 import json
 import os
@@ -1880,4 +1880,4 @@ git commit -m "feat: test integrazione completo + patch AGENTS.md"
 
 ---
 
-*Piano v1 — 2026-05-20 — AI Wiki System*
+*Piano v1 — 2026-05-20 — AI Longterm Wiki Memory*
