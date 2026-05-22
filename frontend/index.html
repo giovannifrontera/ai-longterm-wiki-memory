@@ -829,7 +829,11 @@ function connectWS() {
 async function fetchGraph() {
   const resp = await fetch('/api/graph');
   if (resp.status === 401) { showLogin(); return; }
-  graphData = await resp.json();
+  const fresh = await resp.json();
+  // Preserve D3 simulation positions so live graph_update doesn't snap nodes to random coords
+  const posMap = new Map(graphData.nodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]));
+  fresh.nodes.forEach(n => { const p = posMap.get(n.id); if (p) Object.assign(n, p); });
+  graphData = fresh;
   renderTabs();
   renderGraph();
 }

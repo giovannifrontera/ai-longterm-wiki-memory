@@ -120,6 +120,8 @@ def build_graph(workspace: str, cfg: dict) -> dict:
     _CACHE = {"nodes": nodes, "edges": edges}
     _CACHE_TIME = now
     _DIRTY = False
+    # Shallow copy so callers cannot replace _CACHE["nodes"] / _CACHE["edges"];
+    # node/edge dicts themselves are shared (D3 attaches x/y in-place, which is intentional).
     return dict(_CACHE)
 
 

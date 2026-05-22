@@ -243,3 +243,25 @@ def test_query_log_written(tmp_workspace, monkeypatch):
     assert entry["q"] == "what is RAG?"
     assert "wiki/concepts/rag.md" in entry["paths"]
     assert "ts" in entry
+
+
+def test_get_page_detail_path_traversal(tmp_workspace):
+    """Path traversal attempts outside workspace must return None."""
+    from wiki_graph import get_page_detail
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+
+    assert get_page_detail(str(tmp_workspace), "../../etc/passwd", cfg) is None
+    assert get_page_detail(str(tmp_workspace), "../../../Windows/System32/drivers/etc/hosts", cfg) is None
+
+
+def test_build_graph_excludes_raw_dir_directly_under_wiki(tmp_workspace):
+    """Files in wiki/raw/ (raw directly under wiki, not under a project) must be excluded."""
+    _make_page(tmp_workspace / "wiki" / "raw" / "source.md", "Source")
+    _make_page(tmp_workspace / "wiki" / "concepts" / "rag.md", "RAG")
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+    result = build_graph(str(tmp_workspace), cfg)
+
+    ids = {n["id"] for n in result["nodes"]}
+    assert "wiki/raw/source" not in ids
+    assert "wiki/concepts/rag" in ids
