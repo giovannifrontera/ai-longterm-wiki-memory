@@ -241,9 +241,11 @@ def cmd_session_update(args, cfg):
 def cmd_scan_inbox(args, cfg):
     from wiki_pdf_watcher import scan_inbox
     result = scan_inbox(args.workspace, cfg)
-    _write_session(args.workspace, "scan-inbox", "ok", {
+    session_status = "partial-failure" if result["failed"] > 0 else "ok"
+    _write_session(args.workspace, "scan-inbox", session_status, {
         "processed": result["processed"],
         "deposited": result["deposited"],
+        "failed": result["failed"],
     })
     ok(result)
 
@@ -261,7 +263,8 @@ def cmd_ingest_pdf(args, cfg):
         if not filename.lower().endswith(".pdf"):
             filename = filename + ".pdf"
         dest = inbox_dir / filename
-        urllib.request.urlretrieve(file_arg, str(dest))
+        with urllib.request.urlopen(file_arg, timeout=30) as response:
+            dest.write_bytes(response.read())
     else:
         src = Path(file_arg)
         if not src.exists():
@@ -271,9 +274,11 @@ def cmd_ingest_pdf(args, cfg):
         shutil.copy2(str(src), str(dest))
 
     result = scan_inbox(args.workspace, cfg)
-    _write_session(args.workspace, "ingest-pdf", "ok", {
+    session_status = "partial-failure" if result["failed"] > 0 else "ok"
+    _write_session(args.workspace, "ingest-pdf", session_status, {
         "processed": result["processed"],
         "deposited": result["deposited"],
+        "failed": result["failed"],
     })
     ok(result)
 
