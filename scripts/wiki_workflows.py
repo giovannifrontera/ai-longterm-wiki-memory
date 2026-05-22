@@ -126,11 +126,18 @@ def cmd_ingest(args, cfg):
 
 
 def cmd_query(args, cfg):
+    from datetime import datetime as _datetime
     db = get_db(_lancedb_path(args.workspace, cfg))
     model, _ = _load_model(cfg["lancedb"]["embedding_model"])
     vector = model.encode(args.q, normalize_embeddings=True).tolist()
 
     results = query_similar(db, vector, k=args.k)
+
+    paths = list({r["path"] for r in results})
+    log_path = Path(args.workspace) / ".wiki-query-log.jsonl"
+    entry = {"ts": _datetime.now().isoformat(), "q": args.q, "paths": paths}
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
     ok({"op": "query", "results": [
         {"path": r["path"], "chunk_id": r["chunk_id"],
@@ -337,3 +344,11 @@ def _count_pages(workspace: str) -> int:
         1 for md_file in _wiki_md_files(workspace)
         if not md_file.name.endswith(".tmp")
     )
+
+
+def cmd_serve(args, cfg):
+    import uvicorn
+    import wiki_server
+    no_auth = getattr(args, "no_auth", False)
+    wiki_server.configure(args.workspace, cfg, no_auth)
+    uvicorn.run("wiki_server:app", host=args.host, port=args.port, reload=False)

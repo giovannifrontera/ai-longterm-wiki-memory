@@ -204,3 +204,42 @@ def test_mark_dirty_forces_rebuild(tmp_workspace):
     ids = {n["id"] for n in r2["nodes"]}
     assert "wiki/concepts/embedding" in ids
     assert len(r2["nodes"]) > len(r1["nodes"])
+
+
+def test_query_log_written(tmp_workspace, monkeypatch):
+    import wiki_workflows
+    import wiki_lancedb
+    import wiki_embed
+
+    def fake_query_similar(db, vector, k=5, path_prefix=None):
+        return [{"path": "wiki/concepts/rag.md", "chunk_id": 0,
+                 "_distance": 0.1, "chunk_text": "rag chunk"}]
+
+    class FakeModel:
+        def encode(self, text, normalize_embeddings=True):
+            import numpy as np
+            return np.zeros(1024)
+
+    monkeypatch.setattr(wiki_lancedb, "query_similar", fake_query_similar)
+    monkeypatch.setattr(wiki_lancedb, "get_db", lambda path: object())
+    monkeypatch.setattr(wiki_embed, "_load_model", lambda name: (FakeModel(), None))
+    # wiki_workflows imports these names directly at module level, so patch there too
+    monkeypatch.setattr(wiki_workflows, "query_similar", fake_query_similar)
+    monkeypatch.setattr(wiki_workflows, "get_db", lambda path: object())
+    monkeypatch.setattr(wiki_workflows, "_load_model", lambda name: (FakeModel(), None))
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+
+    class Args:
+        workspace = str(tmp_workspace)
+        q = "what is RAG?"
+        k = 5
+
+    wiki_workflows.cmd_query(Args(), cfg)
+
+    log_path = tmp_workspace / ".wiki-query-log.jsonl"
+    assert log_path.exists(), ".wiki-query-log.jsonl not created"
+    entry = json.loads(log_path.read_text().strip())
+    assert entry["q"] == "what is RAG?"
+    assert "wiki/concepts/rag.md" in entry["paths"]
+    assert "ts" in entry
