@@ -29,6 +29,7 @@ _secret_key: str = ""
 _jwt_secret: str = ""  # derived at configure() — kept separate from login password
 _session_days: int = 7
 _lint_busy: bool = False
+_server_start: float = 0.0
 
 _ws_clients: Set[WebSocket] = set()
 
@@ -46,6 +47,9 @@ def configure(workspace: str, cfg: dict, no_auth: bool) -> None:
     # Derive a separate JWT signing secret so it is never the raw login password.
     _jwt_secret = hmac.digest(_secret_key.encode(), b"wiki-jwt-v1", "sha256").hex()
     _session_days = int(frontend.get("session_days", 7))
+    global _server_start
+    import time
+    _server_start = time.time()
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -204,7 +208,15 @@ def _build_stats() -> dict:
 
     # auto_lint config
     interval = _cfg.get("frontend", {}).get("lint_interval_hours")
-    auto_lint: dict = {"enabled": bool(interval), "interval_hours": interval, "next_run_iso": None}
+    next_run_iso = None
+    if interval and _server_start:
+        import time
+        next_run_ts = _server_start + float(interval) * 3600
+        elapsed = time.time() - _server_start
+        periods_elapsed = int(elapsed / (float(interval) * 3600))
+        next_run_ts = _server_start + (periods_elapsed + 1) * float(interval) * 3600
+        next_run_iso = datetime.fromtimestamp(next_run_ts, tz=timezone.utc).isoformat(timespec="seconds")
+    auto_lint: dict = {"enabled": bool(interval), "interval_hours": interval, "next_run_iso": next_run_iso}
 
     total_pages = len(graph_data.get("nodes", []))
     return {
