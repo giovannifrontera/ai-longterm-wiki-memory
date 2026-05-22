@@ -232,6 +232,9 @@ Ogni comando produce JSON su stdout:
 ```json
 {
   "workspace": "/path/to/workspace",
+  "pdf_inbox": {
+    "project_default": "ricerca"
+  },
   "projects": {
     "trading": {
       "path": "wiki-works/trading",
@@ -259,6 +262,8 @@ Ogni comando produce JSON su stdout:
   }
 }
 ```
+
+> **`pdf_inbox.project_default`** — il progetto in cui vengono depositati i PDF quando il filename non corrisponde alle keyword di nessun progetto. Se omesso, il sistema usa il primo progetto definito nel config, che potrebbe non essere quello desiderato.
 
 ---
 

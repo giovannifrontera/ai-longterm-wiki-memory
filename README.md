@@ -198,6 +198,9 @@ The second line forces the agent to reload the rules before acting — not just 
 ```json
 {
   "workspace": "/path/to/your/workspace",
+  "pdf_inbox": {
+    "project_default": "research"
+  },
   "projects": {
     "trading": {
       "path": "wiki-works/trading",
@@ -210,6 +213,8 @@ The second line forces the agent to reload the rules before acting — not just 
   }
 }
 ```
+
+> **`pdf_inbox.project_default`** — the project where PDFs are deposited when the filename doesn't match any project's keywords. If omitted, the system falls back to the first project defined in the config, which may not be what you want.
 
 **4. Initialize**
 ```bash
