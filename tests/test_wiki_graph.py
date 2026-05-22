@@ -140,3 +140,67 @@ def test_get_page_detail_links_in(tmp_workspace):
 
     assert "wiki/concepts/rag" in detail["links_in"]
     assert detail["links_out"] == []
+
+
+def test_build_graph_semantic_edges(tmp_workspace, monkeypatch):
+    import numpy as np
+    import pandas as pd
+    import wiki_graph
+
+    _make_page(tmp_workspace / "wiki" / "concepts" / "rag.md", "RAG")
+    _make_page(tmp_workspace / "wiki" / "concepts" / "transformer.md", "Transformer")
+
+    fake_df = pd.DataFrame([
+        {"path": "wiki/concepts/rag.md", "chunk_id": 0,
+         "vector": np.ones(1024).tolist(),
+         "chunk_text": "rag", "content_hash": "a", "page_hash": "a", "last_embedded": 0.0},
+        {"path": "wiki/concepts/transformer.md", "chunk_id": 0,
+         "vector": np.ones(1024).tolist(),
+         "chunk_text": "transformer", "content_hash": "b", "page_hash": "b", "last_embedded": 0.0},
+    ])
+
+    class FakeTable:
+        def to_pandas(self):
+            return fake_df
+
+    monkeypatch.setattr(wiki_graph, "_LANCEDB_AVAILABLE", True)
+    monkeypatch.setattr(wiki_graph, "_lancedb_get_db", lambda path: object())
+    monkeypatch.setattr(wiki_graph, "_lancedb_ensure_table", lambda db, table_name="wiki_pages": FakeTable())
+    monkeypatch.setattr(wiki_graph, "_lancedb_query_similar", lambda db, vec, k=5, path_prefix=None: [
+        {"path": "wiki/concepts/transformer.md", "_distance": 0.1,
+         "chunk_id": 0, "chunk_text": "transformer"},
+    ])
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+    result = build_graph(str(tmp_workspace), cfg)
+
+    sem_edges = [e for e in result["edges"] if e["type"] == "semantic"]
+    assert len(sem_edges) == 1
+    pair = {sem_edges[0]["source"], sem_edges[0]["target"]}
+    assert pair == {"wiki/concepts/rag", "wiki/concepts/transformer"}
+    assert sem_edges[0]["weight"] == pytest.approx(0.9, abs=0.01)
+
+
+def test_graph_cache_reused(tmp_workspace):
+    _make_page(tmp_workspace / "wiki" / "concepts" / "rag.md", "RAG")
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+    r1 = build_graph(str(tmp_workspace), cfg)
+    r2 = build_graph(str(tmp_workspace), cfg)
+    # Cache returns same content — both calls should have identical nodes
+    assert r1["nodes"] == r2["nodes"]
+    assert r1["edges"] == r2["edges"]
+
+
+def test_mark_dirty_forces_rebuild(tmp_workspace):
+    import wiki_graph
+    _make_page(tmp_workspace / "wiki" / "concepts" / "rag.md", "RAG")
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+    r1 = build_graph(str(tmp_workspace), cfg)
+
+    _make_page(tmp_workspace / "wiki" / "concepts" / "embedding.md", "Embedding")
+    wiki_graph.mark_dirty()
+    r2 = build_graph(str(tmp_workspace), cfg)
+
+    ids = {n["id"] for n in r2["nodes"]}
+    assert "wiki/concepts/embedding" in ids
+    assert len(r2["nodes"]) > len(r1["nodes"])
