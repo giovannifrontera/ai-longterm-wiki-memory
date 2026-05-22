@@ -51,6 +51,26 @@ Prima di rispondere a qualsiasi messaggio:
 **Conferma per AMBIGUO:** una sola riga, mai lunga:
 > "Vuoi che salvi questo nel wiki o stai solo condividendo?"
 
+## §pdf-inbox — Workflow di ingestione PDF
+
+Quando l'utente invia un PDF (allegato, percorso file, o URL):
+
+1. Chiama `wiki.py ingest-pdf --workspace <path> --file <path|url>`
+   Non scrivere mai direttamente in `wiki-works/` né salvare il file manualmente.
+2. Il comando copia il PDF in `pdf-inbox/` ed estrae automaticamente il testo.
+   Output: `{"status": "ok", "op": "scan-inbox", "processed": N, "deposited": [...]}`
+3. Per ogni filename in `deposited`, leggi `wiki-works/<progetto>/raw/<nome>.md`.
+   Questo file contiene testo grezzo estratto — NON è una pagina wiki finita.
+4. Struttura il testo grezzo in pagine `.tmp` (entities, concepts, synthesis secondo il contenuto).
+5. Chiama `wiki.py ingest --workspace <path> --pages <lista> --log "INGEST | <nome pdf>"`
+
+Per verificare nuovi PDF aggiunti all'inbox dall'ultima sessione:
+- Chiama `wiki.py scan-inbox --workspace <path>`
+- Leggi `wiki-session.md` — la sezione "ultima operazione" elenca i raw file pronti.
+
+I file in `raw/` con frontmatter `source: pdf` sono sempre testo grezzo estratto.
+Strutturarli sempre prima di chiamare `wiki.py ingest`.
+
 ## §workspace — Selezione automatica del progetto
 
 1. Leggi `wiki.config.json` → lista `projects` con keywords

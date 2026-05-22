@@ -40,3 +40,22 @@ Usa questo blocco direttamente come contesto di partenza per la risposta — è 
 conoscenza più rilevante dal wiki per questo prompt. Non eseguire `wiki.py query` di
 nuovo per la stessa query: sarebbe ridondante. Se il blocco è assente, procedi
 normalmente con la checklist in `skills/wiki-core.md`.
+
+---
+
+## PDF Inbox
+
+Quando l'utente invia un file PDF in chat o fornisce un percorso/URL:
+```
+wiki.py ingest-pdf --workspace <workspace> --file <percorso|url>
+```
+Non salvare mai i PDF manualmente né scrivere direttamente in `wiki-works/`.
+
+Per processare tutti i PDF aggiunti all'inbox dall'ultima sessione:
+```
+wiki.py scan-inbox --workspace <workspace>
+```
+
+I file depositati in `wiki-works/<progetto>/raw/` con frontmatter `source: pdf` sono testo grezzo estratto — non pagine wiki finite. Strutturarli sempre in pagine `.tmp` prima di chiamare `wiki.py ingest`.
+
+Dopo `scan-inbox`, controlla `wiki-session.md` — la sezione "ultima operazione" elenca i raw file pronti per la strutturazione.
