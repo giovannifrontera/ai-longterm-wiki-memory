@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 
 def test_lint_status_written(tmp_workspace, monkeypatch):
-    import wiki_lancedb, wiki_workflows
+    import wiki_workflows
 
     class FakeTable:
         def to_pandas(self):
@@ -20,7 +20,6 @@ def test_lint_status_written(tmp_workspace, monkeypatch):
             pass
 
     monkeypatch.setattr(wiki_workflows, "get_db", lambda path: object())
-    monkeypatch.setattr(wiki_lancedb, "ensure_table", lambda db, table_name="wiki_pages": FakeTable())
     monkeypatch.setattr(wiki_workflows, "ensure_table", lambda db, table_name="wiki_pages": FakeTable())
     monkeypatch.setattr(wiki_workflows, "detect_renames", lambda db, fs_paths, workspace: [])
 
@@ -40,3 +39,23 @@ def test_lint_status_written(tmp_workspace, monkeypatch):
     assert "warnings" in data
     assert "detail" in data
     assert data["errors"] == 0
+
+
+def test_lint_status_written_no_full(tmp_workspace, monkeypatch):
+    import wiki_workflows
+
+    monkeypatch.setattr(wiki_workflows, "get_db", lambda path: object())
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+
+    class Args:
+        workspace = str(tmp_workspace)
+        full = False
+
+    wiki_workflows.cmd_lint(Args(), cfg)
+
+    status_path = tmp_workspace / ".wiki-lint-status.json"
+    assert status_path.exists(), ".wiki-lint-status.json not created for full=False"
+    data = json.loads(status_path.read_text())
+    assert data["errors"] == 0
+    assert data["warnings"] == 0

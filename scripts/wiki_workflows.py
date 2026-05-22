@@ -243,11 +243,12 @@ def cmd_lint(args, cfg):
     errors = sum(1 for r in report if r["type"] in ("broken_link", "orphan_entry"))
     warnings = sum(1 for r in report if r["type"] == "rename_detected")
     orphans = sum(1 for r in report if r["type"] == "orphan_entry")
+    broken = sum(1 for r in report if r["type"] == "broken_link")
     detail_parts = []
     if orphans:
         detail_parts.append(f"{orphans} orphan vectors removed")
-    if errors - orphans:
-        detail_parts.append(f"{errors - orphans} broken links")
+    if broken:
+        detail_parts.append(f"{broken} broken links")
     if warnings:
         detail_parts.append(f"{warnings} renames detected")
     detail_str = ", ".join(detail_parts) if detail_parts else "no issues"
@@ -269,6 +270,7 @@ def cmd_lint(args, cfg):
             os.unlink(tmp_p)
         except OSError:
             pass
+        raise
 
     ok({"op": "lint", "full": args.full, "issues": report, "issues_count": len(report)})
 
