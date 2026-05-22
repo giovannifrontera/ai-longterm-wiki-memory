@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -71,8 +72,10 @@ def deposit_raw(text: str, pdf_name: str, workspace: str, cfg: dict) -> str:
     raw_dir = Path(workspace) / "wiki-works" / project / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    stem = Path(pdf_name).stem
+    stem = re.sub(r"[^\w\-]", "_", Path(pdf_name).stem)
     out_path = raw_dir / f"{stem}.md"
+    if not out_path.resolve().is_relative_to(raw_dir.resolve()):
+        raise ValueError(f"Nome PDF non sicuro: {pdf_name}")
 
     now = datetime.now().isoformat(timespec="seconds")
     content = f"---\nsource: pdf\noriginal: {pdf_name}\nextracted_at: {now}\n---\n\n{text}"
@@ -123,7 +126,7 @@ def scan_inbox(workspace: str, cfg: dict) -> dict:
                 "processed_at": datetime.now().isoformat(timespec="seconds"),
                 "status": "deposited",
             }
-            processed.append(Path(rel_path).name)
+            processed.append(rel_path)
 
         except Exception as e:
             registry[name] = {

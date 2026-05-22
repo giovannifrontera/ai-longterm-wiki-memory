@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -54,7 +55,7 @@ def cmd_ingest(args, cfg):
         acquire_lock(lock_path)
     except RuntimeError as e:
         print(e.args[0])
-        return
+        sys.exit(1)
 
     _write_session(workspace, "ingest", "in-progress", {})
 
@@ -70,7 +71,9 @@ def cmd_ingest(args, cfg):
                 raise FileNotFoundError(f"File .tmp non trovato: {tmp_path}")
 
         for tmp_path in tmp_paths:
-            rel_final = os.path.relpath(tmp_path, workspace).replace(".tmp", "").replace("\\", "/")
+            rel_final = os.path.relpath(tmp_path, workspace).replace("\\", "/")
+            if rel_final.endswith(".tmp"):
+                rel_final = rel_final[:-4]
             chunks = embed_file(
                 tmp_path,
                 chunk_size=thresholds["chunk_size_tokens"],
@@ -234,7 +237,13 @@ def cmd_lint(args, cfg):
 
 
 def cmd_session_update(args, cfg):
-    _write_session(args.workspace, args.op, args.status, json.loads(args.detail))
+    try:
+        detail = json.loads(args.detail)
+    except json.JSONDecodeError as e:
+        from wiki import error
+        error("invalid_detail", f"detail non è JSON valido: {e}", recoverable=False)
+        sys.exit(1)
+    _write_session(args.workspace, args.op, args.status, detail)
     ok({"op": "session-update", "status": args.status})
 
 
@@ -257,6 +266,8 @@ def cmd_ingest_pdf(args, cfg):
     inbox_dir = Path(args.workspace) / "pdf-inbox"
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
+    _MAX_PDF_BYTES = 50 * 1024 * 1024  # 50 MB hard cap
+
     file_arg = args.file
     if file_arg.startswith("http://") or file_arg.startswith("https://"):
         filename = Path(file_arg.split("?")[0]).name
@@ -264,7 +275,11 @@ def cmd_ingest_pdf(args, cfg):
             filename = filename + ".pdf"
         dest = inbox_dir / filename
         with urllib.request.urlopen(file_arg, timeout=30) as response:
-            dest.write_bytes(response.read())
+            data = response.read(_MAX_PDF_BYTES + 1)
+        if len(data) > _MAX_PDF_BYTES:
+            error("pdf_too_large", f"Il PDF supera il limite di 50 MB", recoverable=False)
+            return
+        dest.write_bytes(data)
     else:
         src = Path(file_arg)
         if not src.exists():

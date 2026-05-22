@@ -58,8 +58,9 @@ Quando l'utente invia un PDF (allegato, percorso file, o URL):
 1. Chiama `wiki.py ingest-pdf --workspace <path> --file <path|url>`
    Non scrivere mai direttamente in `wiki-works/` né salvare il file manualmente.
 2. Il comando copia il PDF in `pdf-inbox/` ed estrae automaticamente il testo.
-   Output: `{"status": "ok", "op": "scan-inbox", "processed": N, "deposited": [...]}`
-3. Per ogni filename in `deposited`, leggi `wiki-works/<progetto>/raw/<nome>.md`.
+   Output: `{"status": "ok", "op": "scan-inbox", "processed": N, "skipped": N, "failed": N, "deposited": ["wiki-works/<progetto>/raw/<nome>.md", ...], "failures": [...]}`
+   Se `failed > 0`, lo stato sessione è `partial-failure` — controlla `failures` per i dettagli.
+3. Per ogni path in `deposited`, leggi il file direttamente (path relativo al workspace).
    Questo file contiene testo grezzo estratto — NON è una pagina wiki finita.
 4. Struttura il testo grezzo in pagine `.tmp` (entities, concepts, synthesis secondo il contenuto).
 5. Chiama `wiki.py ingest --workspace <path> --pages <lista> --log "INGEST | <nome pdf>"`

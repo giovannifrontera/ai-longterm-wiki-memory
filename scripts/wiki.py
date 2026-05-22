@@ -114,7 +114,7 @@ def main():
     p_session = sub.add_parser("session-update")
     p_session.add_argument("--workspace", required=True)
     p_session.add_argument("--op", required=True)
-    p_session.add_argument("--status", required=True, choices=["ok", "failed", "in-progress", "needs-repair"])
+    p_session.add_argument("--status", required=True, choices=["ok", "failed", "in-progress", "needs-repair", "partial-failure"])
     p_session.add_argument("--detail", default="{}")
 
     p_scan_inbox = sub.add_parser("scan-inbox")
