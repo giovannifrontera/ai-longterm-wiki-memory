@@ -95,3 +95,31 @@ def test_scanned_pdf_no_text_returns_empty_string(sample_pdf):
         mock_plumber.open.return_value.__enter__.return_value.pages = [mock_page]
         result = extract_text(str(sample_pdf))
     assert result == ""
+
+
+# ── deposit_raw tests ────────────────────────────────────────────────────────
+
+def test_deposit_raw_creates_file_in_raw_dir(tmp_workspace, cfg):
+    from wiki_pdf_watcher import deposit_raw
+    rel = deposit_raw("# Title\n\nAbstract here.", "paper1.pdf", str(tmp_workspace), cfg)
+    out = tmp_workspace / rel.replace("/", os.sep)
+    assert out.exists()
+
+def test_deposit_raw_includes_frontmatter(tmp_workspace, cfg):
+    from wiki_pdf_watcher import deposit_raw
+    rel = deposit_raw("Some text", "paper1.pdf", str(tmp_workspace), cfg)
+    content = (tmp_workspace / rel.replace("/", os.sep)).read_text(encoding="utf-8")
+    assert "source: pdf" in content
+    assert "original: paper1.pdf" in content
+    assert "extracted_at:" in content
+
+def test_deposit_raw_preserves_text(tmp_workspace, cfg):
+    from wiki_pdf_watcher import deposit_raw
+    rel = deposit_raw("Important content here.", "paper1.pdf", str(tmp_workspace), cfg)
+    content = (tmp_workspace / rel.replace("/", os.sep)).read_text(encoding="utf-8")
+    assert "Important content here." in content
+
+def test_deposit_raw_uses_project_default(tmp_workspace, cfg):
+    from wiki_pdf_watcher import deposit_raw
+    rel = deposit_raw("text", "paper1.pdf", str(tmp_workspace), cfg)
+    assert "wiki-works/test/raw/paper1.md" == rel

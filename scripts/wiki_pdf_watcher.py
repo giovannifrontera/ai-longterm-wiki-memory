@@ -61,7 +61,24 @@ def extract_text(pdf_path: str) -> str:
 
 
 def deposit_raw(text: str, pdf_name: str, workspace: str, cfg: dict) -> str:
-    raise NotImplementedError
+    """Salva testo estratto in wiki-works/<project>/raw/<stem>.md con frontmatter.
+    Ritorna il path relativo al workspace (slash forward)."""
+    project = cfg.get("pdf_inbox", {}).get("project_default", "")
+    if not project:
+        projects = cfg.get("projects", {})
+        project = next(iter(projects), "default") if projects else "default"
+
+    raw_dir = Path(workspace) / "wiki-works" / project / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    stem = Path(pdf_name).stem
+    out_path = raw_dir / f"{stem}.md"
+
+    now = datetime.now().isoformat(timespec="seconds")
+    content = f"---\nsource: pdf\noriginal: {pdf_name}\nextracted_at: {now}\n---\n\n{text}"
+    out_path.write_text(content, encoding="utf-8")
+
+    return os.path.relpath(str(out_path), workspace).replace("\\", "/")
 
 
 def scan_inbox(workspace: str, cfg: dict) -> dict:
