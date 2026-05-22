@@ -1,6 +1,6 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-1.1.0-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/versione-2.0.0-informational)](CHANGELOG.md)
 
 Un sistema di memoria wiki semantica per agenti AI — progettato per funzionare con [OpenClaw](https://github.com/openclaw/openclaw) e qualsiasi agente capace di leggere file e chiamare comandi bash.
 
@@ -31,16 +31,19 @@ workspace/
 ├── scripts/
 │   ├── wiki.py               ← entry point CLI
 │   ├── wiki_context.py       ← iniettore di contesto pre-prompt (hook)
+│   ├── wiki_pdf_watcher.py   ← scanner PDF inbox (hash detection + pdfplumber)
 │   ├── wiki_embed.py         ← chunking + embedding bge-m3
 │   ├── wiki_lancedb.py       ← operazioni LanceDB (upsert, staging, rename)
 │   └── wiki_index.py         ← generazione index.md con budget token
+├── pdf-inbox/                ← nuovo: tutte le sorgenti PDF convergono qui
+│   └── .registry.json        ← hash + status per PDF (scrittura atomica)
 ├── wiki/                     ← conoscenza permanente
 │   ├── entities/
 │   ├── concepts/
 │   └── synthesis/
 ├── wiki-works/               ← ricerche attive per progetto
 │   └── <progetto>/
-│       ├── raw/              ← fonti grezze, non indicizzate
+│       ├── raw/              ← fonti grezze e PDF estratti
 │       ├── entities/
 │       ├── concepts/
 │       └── synthesis/
@@ -125,6 +128,18 @@ Ogni ingest usa un pattern `.tmp` → staging LanceDB → promozione atomica. Se
 
 `index.md` rispetta un budget configurabile (default 4000 token). Se superato, applica automaticamente strategie di riduzione: prima rimuove le descrizioni, poi crea index separati per categoria. L'agente può sempre navigare la wiki anche su context window limitate.
 
+### Ingestione PDF multi-sorgente *(v2.0)*
+
+Qualsiasi PDF — inviato via Telegram, CLI, URL o depositato manualmente nella cartella — entra attraverso `pdf-inbox/` e viene estratto automaticamente da `wiki_pdf_watcher.py` tramite pdfplumber. Il confronto SHA-256 garantisce che i PDF vengano ri-processati solo quando il contenuto cambia effettivamente. I PDF scansionati (senza testo selezionabile) vengono segnalati e saltati. Il testo estratto viene depositato come file `.md` con frontmatter YAML in `wiki-works/<progetto>/raw/` — pronto per essere strutturato in pagine wiki dall'agente.
+
+```bash
+wiki.py ingest-pdf --workspace <path> --file paper.pdf        # file locale
+wiki.py ingest-pdf --workspace <path> --file https://...      # URL (limite 50 MB)
+wiki.py scan-inbox --workspace <path>                         # processa tutti i PDF in coda
+```
+
+L'agente gestisce gli allegati Telegram automaticamente — nessun nuovo plugin necessario. Il comando `scan-inbox` è idempotente: sicuro da eseguire come cron job.
+
 ### Iniezione di contesto pre-prompt *(v1.1)*
 
 `wiki_context.py` esegue una ricerca vettoriale **prima che ogni messaggio dell'utente raggiunga l'agente** e inietta un blocco `<wiki-context>` con le pagine più rilevanti. Questo elimina il principale failure mode degli approcci basati su skill: l'instruction drift che porta l'agente a ignorare la wiki sugli intent non-QUERY.
@@ -176,7 +191,7 @@ py scripts/wiki.py rebuild --workspace my-workspace/
 ```bash
 cd ai-longterm-wiki-memory
 pytest tests/ -v
-# Atteso: 37 test passati
+# Atteso: 56 test passati
 ```
 
 ---
@@ -191,7 +206,9 @@ wiki.py <comando> [argomenti]
   lint           --workspace <path> [--full]
   index          --workspace <path>
   rebuild        --workspace <path>
-  session-update --workspace <path> --op <tipo> --status <ok|failed|in-progress> [--detail <json>]
+  session-update --workspace <path> --op <tipo> --status <ok|failed|in-progress|partial-failure> [--detail <json>]
+  scan-inbox     --workspace <path>
+  ingest-pdf     --workspace <path> --file <path-locale|url>
 
 wiki_context.py [hook — emette un blocco <wiki-context> su stdout]
 
@@ -254,6 +271,36 @@ Ogni comando produce JSON su stdout:
 ---
 
 ## Changelog
+
+### v2.0 — 2026-05-22
+
+**Novità: Ingestione PDF multi-sorgente**
+
+- `scripts/wiki_pdf_watcher.py` — nuovo modulo per gestione inbox PDF:
+  - Rilevamento modifiche via hash SHA-256 con `.registry.json` atomico
+  - Estrazione testo con pdfplumber; crash recovery tramite stato `pending`
+  - `deposit_raw`: deposita testo estratto in `wiki-works/<progetto>/raw/` con frontmatter YAML (`source: pdf`)
+  - `scan_inbox`: idempotente, sicuro per cron, gestisce failure per-file
+- Nuovi comandi CLI in `wiki.py`:
+  - `scan-inbox --workspace <path>` — scansiona `pdf-inbox/` per PDF nuovi/modificati
+  - `ingest-pdf --workspace <path> --file <path|url>` — ingest da file locale o URL
+- Cartella `pdf-inbox/` alla radice del workspace — punto di convergenza per Telegram, CLI e drop manuali
+- Nessun nuovo plugin OpenClaw necessario — la regola agent copre gli allegati Telegram
+- `partial-failure` aggiunto come status valido in `session-update`
+
+**Fix robustezza**
+- `rel_final` in `cmd_ingest`: strip `.tmp` solo come suffisso — previene corruzione path con directory contenenti `.tmp`
+- `cmd_ingest`: `sys.exit(1)` su fallimento lock (era return silenzioso)
+- `cmd_ingest_pdf`: limite 50 MB su download URL
+- `deposit_raw`: sanitizzazione filename + assert confinamento path (path traversal)
+- `cmd_session_update`: `json.JSONDecodeError` gestito con risposta errore strutturata
+- Lista `deposited` ora contiene path relativi completi, non basename
+
+**Testing**
+- 21 nuovi test per `wiki_pdf_watcher` (56 totali, tutti green)
+- `conftest.py` aggiornato con fixture `pdf-inbox` e config `project_default`
+
+---
 
 ### v1.1.0 — 2026-05-21
 

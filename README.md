@@ -6,8 +6,8 @@
 
 Give your AI agent a wiki it actually maintains — not a flat note dump, but a structured, self-healing knowledge base where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-2.0.0-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-56%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
@@ -104,6 +104,17 @@ When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds
 - **Renames** (file moved → updates DB path without re-embedding, using `content_hash` comparison)
 - **Semantic duplicates** (cosine similarity > 0.95 across pages)
 
+### Multi-source PDF ingestion *(v2.0)*
+Any PDF — sent via Telegram, CLI, URL, or dropped into the folder — enters through `pdf-inbox/` and is extracted automatically by `wiki_pdf_watcher.py` using pdfplumber. SHA-256 hash comparison ensures PDFs are only re-processed when their content actually changes. Scanned PDFs (no selectable text) are flagged and skipped cleanly. The extracted text is deposited as a `.md` file with YAML frontmatter in `wiki-works/<project>/raw/` — ready for the agent to structure into wiki pages.
+
+```bash
+wiki.py ingest-pdf --workspace <path> --file paper.pdf        # local file
+wiki.py ingest-pdf --workspace <path> --file https://...      # URL (50 MB cap)
+wiki.py scan-inbox --workspace <path>                         # process all queued PDFs
+```
+
+The agent handles Telegram attachments automatically — no new plugin needed. The `scan-inbox` command is idempotent: safe to run as a cron job.
+
 ### Token-budget index
 `index.md` respects a configurable token budget (default 4000). When exceeded, it applies reduction strategies automatically — so the agent can navigate the wiki even on small context windows.
 
@@ -138,16 +149,19 @@ workspace/
 ├── scripts/
 │   ├── wiki.py               ← unified CLI entry point
 │   ├── wiki_context.py       ← pre-prompt context injector (hook)
+│   ├── wiki_pdf_watcher.py   ← PDF inbox scanner (hash detection + pdfplumber)
 │   ├── wiki_embed.py         ← boundary-aware chunking + bge-m3 embeddings
 │   ├── wiki_lancedb.py       ← LanceDB ops (upsert, staging, rename detection)
 │   └── wiki_index.py         ← token-budget index generation
+├── pdf-inbox/                ← new: all PDF sources converge here
+│   └── .registry.json        ← hash + status per PDF (atomic)
 ├── wiki/                     ← permanent knowledge base
 │   ├── entities/             ← people, tools, organizations
 │   ├── concepts/             ← theories, strategies, definitions
 │   └── synthesis/            ← cross-source inferences
 ├── wiki-works/               ← active research (per project)
 │   └── <project>/
-│       ├── raw/              ← raw fetched sources (not indexed)
+│       ├── raw/              ← raw fetched sources and extracted PDFs
 │       ├── entities/
 │       ├── concepts/
 │       └── synthesis/
@@ -322,9 +336,10 @@ Karpathy's core insight: instead of re-deriving knowledge on every query (classi
 | `sentence-transformers` | ≥ 3.0.0 | Loads and runs BAAI/bge-m3 locally; handles multilingual chunked embedding |
 | `pyarrow` | ≥ 14.0.0 | Columnar storage format required by LanceDB for batch operations and schema enforcement |
 | `pandas` | ≥ 2.0.0 | DataFrame operations used in bulk embedding, lint statistics, and rename-detection comparisons |
-| `pytest` | ≥ 8.0.0 | Test runner — 37 automated tests covering ingest atomicity, query routing, lint, and CLI output |
+| `pytest` | ≥ 8.0.0 | Test runner — 56 automated tests covering ingest atomicity, query routing, lint, PDF watcher, and CLI output |
 | `pyyaml` | ≥ 6.0 | Parses `wiki.config.json` and YAML frontmatter in wiki pages |
 | `requests` | ≥ 2.31.0 | HTTP fetching used during source ingestion to retrieve external content |
+| `pdfplumber` | ≥ 0.11.0 | PDF text extraction — used by `wiki_pdf_watcher.py` to extract selectable text from PDFs |
 
 ### Install
 
@@ -351,7 +366,7 @@ py scripts/wiki.py rebuild --workspace my-workspace/
 
 ```bash
 pytest tests/ -v
-# Expected: 37 passed
+# Expected: 56 passed
 ```
 
 ---
@@ -366,7 +381,9 @@ wiki.py <command> [arguments]
   lint           --workspace <path> [--full]
   index          --workspace <path>
   rebuild        --workspace <path>
-  session-update --workspace <path> --op <type> --status <ok|failed|in-progress> [--detail <json>]
+  session-update --workspace <path> --op <type> --status <ok|failed|in-progress|partial-failure> [--detail <json>]
+  scan-inbox     --workspace <path>
+  ingest-pdf     --workspace <path> --file <local-path|url>
 
 wiki_context.py [hook — outputs <wiki-context> block to stdout]
 
@@ -421,6 +438,36 @@ Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` mo
 ---
 
 ## Changelog
+
+### v2.0 — 2026-05-22
+
+**New: Multi-source PDF ingestion**
+
+- `scripts/wiki_pdf_watcher.py` — new module for PDF inbox management:
+  - SHA-256 hash-based change detection with atomic `.registry.json`
+  - pdfplumber text extraction; crash recovery via `pending` status
+  - `deposit_raw`: saves extracted text to `wiki-works/<project>/raw/` with YAML frontmatter (`source: pdf`)
+  - `scan_inbox`: idempotent, safe for cron, handles partial failures per-file
+- New CLI commands in `wiki.py`:
+  - `scan-inbox --workspace <path>` — scan `pdf-inbox/` for new/modified PDFs
+  - `ingest-pdf --workspace <path> --file <path|url>` — ingest from local file or URL
+- `pdf-inbox/` folder at workspace root — single convergence point for Telegram, CLI, and manual drops
+- No new OpenClaw plugin needed — the agent rule covers Telegram attachments
+- `partial-failure` added as valid `session-update` status
+
+**Robustness fixes**
+- `rel_final` in `cmd_ingest`: suffix-only `.tmp` strip prevents path corruption when directory names contain `.tmp`
+- `cmd_ingest`: `sys.exit(1)` on lock acquisition failure (was silent return)
+- `cmd_ingest_pdf`: 50 MB download cap prevents memory exhaustion on large/malicious URLs
+- `deposit_raw`: filename sanitization + path confinement assertion prevents path traversal
+- `cmd_session_update`: `json.JSONDecodeError` handled with structured error response
+- `deposited` list now contains full relative paths, not bare filenames
+
+**Testing**
+- 21 new unit tests for `wiki_pdf_watcher` (56 total, all green)
+- `conftest.py` updated with `pdf-inbox` fixture and `project_default` config
+
+---
 
 ### v1.1.1 — 2026-05-21
 
