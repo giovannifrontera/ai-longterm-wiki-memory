@@ -183,3 +183,37 @@ def test_scan_output_json_structure(tmp_workspace, cfg, sample_pdf):
         result = scan_inbox(str(tmp_workspace), cfg)
     assert set(result.keys()) == {"status", "op", "processed", "skipped", "failed", "deposited", "failures"}
     assert result["op"] == "scan-inbox"
+
+
+# ── CLI command tests ────────────────────────────────────────────────────────
+
+import subprocess
+
+def run_wiki_cmd(tmp_workspace, *args):
+    scripts_dir = Path(__file__).parent.parent / "scripts"
+    result = subprocess.run(
+        [sys.executable, str(scripts_dir / "wiki.py"), *args,
+         "--workspace", str(tmp_workspace)],
+        capture_output=True, text=True
+    )
+    try:
+        return json.loads(result.stdout)
+    except Exception:
+        return {"raw_stdout": result.stdout, "raw_stderr": result.stderr}
+
+def test_scan_inbox_cli_empty(tmp_workspace):
+    result = run_wiki_cmd(tmp_workspace, "scan-inbox")
+    assert result["status"] == "ok"
+    assert result["op"] == "scan-inbox"
+    assert result["processed"] == 0
+
+def test_ingest_pdf_cli_local_file(tmp_workspace, tmp_path):
+    fake_pdf = tmp_path / "external.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4 test")
+
+    result = run_wiki_cmd(tmp_workspace, "ingest-pdf", "--file", str(fake_pdf))
+
+    inbox_pdf = tmp_workspace / "pdf-inbox" / "external.pdf"
+    assert inbox_pdf.exists()
+    assert result["status"] == "ok"
+    assert result["failed"] == 1

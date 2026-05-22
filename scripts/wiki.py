@@ -117,6 +117,13 @@ def main():
     p_session.add_argument("--status", required=True, choices=["ok", "failed", "in-progress", "needs-repair"])
     p_session.add_argument("--detail", default="{}")
 
+    p_scan_inbox = sub.add_parser("scan-inbox")
+    p_scan_inbox.add_argument("--workspace", required=True)
+
+    p_ingest_pdf = sub.add_parser("ingest-pdf")
+    p_ingest_pdf.add_argument("--workspace", required=True)
+    p_ingest_pdf.add_argument("--file", required=True)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -133,7 +140,9 @@ def main():
 
 
 def dispatch(args, cfg):
-    from wiki_workflows import cmd_ingest, cmd_query, cmd_lint, cmd_index, cmd_rebuild, cmd_session_update
+    from wiki_workflows import (cmd_ingest, cmd_query, cmd_lint, cmd_index,
+                                cmd_rebuild, cmd_session_update,
+                                cmd_scan_inbox, cmd_ingest_pdf)
     commands = {
         "ingest": cmd_ingest,
         "query": cmd_query,
@@ -141,6 +150,8 @@ def dispatch(args, cfg):
         "index": cmd_index,
         "rebuild": cmd_rebuild,
         "session-update": cmd_session_update,
+        "scan-inbox": cmd_scan_inbox,
+        "ingest-pdf": cmd_ingest_pdf,
     }
     commands[args.command](args, cfg)
 

@@ -238,6 +238,47 @@ def cmd_session_update(args, cfg):
     ok({"op": "session-update", "status": args.status})
 
 
+def cmd_scan_inbox(args, cfg):
+    from wiki_pdf_watcher import scan_inbox
+    result = scan_inbox(args.workspace, cfg)
+    _write_session(args.workspace, "scan-inbox", "ok", {
+        "processed": result["processed"],
+        "deposited": result["deposited"],
+    })
+    ok(result)
+
+
+def cmd_ingest_pdf(args, cfg):
+    import shutil
+    import urllib.request
+    from wiki_pdf_watcher import scan_inbox
+
+    inbox_dir = Path(args.workspace) / "pdf-inbox"
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+
+    file_arg = args.file
+    if file_arg.startswith("http://") or file_arg.startswith("https://"):
+        filename = Path(file_arg.split("?")[0]).name
+        if not filename.lower().endswith(".pdf"):
+            filename = filename + ".pdf"
+        dest = inbox_dir / filename
+        urllib.request.urlretrieve(file_arg, str(dest))
+    else:
+        src = Path(file_arg)
+        if not src.exists():
+            error("file_not_found", f"File non trovato: {file_arg}", recoverable=False)
+            return
+        dest = inbox_dir / src.name
+        shutil.copy2(str(src), str(dest))
+
+    result = scan_inbox(args.workspace, cfg)
+    _write_session(args.workspace, "ingest-pdf", "ok", {
+        "processed": result["processed"],
+        "deposited": result["deposited"],
+    })
+    ok(result)
+
+
 def _write_session(workspace: str, op: str, status: str, detail: dict,
                    project: str = "", project_path: str = "") -> None:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
