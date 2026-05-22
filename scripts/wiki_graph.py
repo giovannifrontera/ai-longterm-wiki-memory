@@ -87,14 +87,16 @@ def build_graph(workspace: str, cfg: dict) -> dict:
     global _CACHE, _CACHE_TIME, _DIRTY
     now = time.monotonic()
     if _CACHE is not None and not _DIRTY and (now - _CACHE_TIME) < _CACHE_TTL:
-        return _CACHE
+        return dict(_CACHE)
 
     files = _collect_md_files(workspace)
     nodes = []
     node_ids: set[str] = set()
+    file_texts: list[tuple[Path, str]] = []
 
     for p in files:
         text = p.read_text(encoding="utf-8")
+        file_texts.append((p, text))
         fm = _load_frontmatter(text)
         nid = _node_id(p, workspace)
         nodes.append({
@@ -108,7 +110,7 @@ def build_graph(workspace: str, cfg: dict) -> dict:
         })
         node_ids.add(nid)
 
-    edges = _explicit_edges(files, node_ids, workspace)
+    edges = _explicit_edges(file_texts, node_ids, workspace)
 
     try:
         edges += _semantic_edges(workspace, cfg, files, node_ids)
@@ -118,14 +120,13 @@ def build_graph(workspace: str, cfg: dict) -> dict:
     _CACHE = {"nodes": nodes, "edges": edges}
     _CACHE_TIME = now
     _DIRTY = False
-    return _CACHE
+    return dict(_CACHE)
 
 
-def _explicit_edges(files: list[Path], node_ids: set[str], workspace: str) -> list[dict]:
+def _explicit_edges(file_texts: list[tuple[Path, str]], node_ids: set[str], workspace: str) -> list[dict]:
     edges: list[dict] = []
     seen: set[tuple] = set()
-    for p in files:
-        text = p.read_text(encoding="utf-8")
+    for p, text in file_texts:
         src = _node_id(p, workspace)
         for m in re.finditer(r"\[\[([^\]]+)\]\]", text):
             slug = m.group(1).strip()
