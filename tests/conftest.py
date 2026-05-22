@@ -7,12 +7,17 @@ def tmp_workspace(tmp_path):
     (tmp_path / "wiki" / "concepts").mkdir(parents=True)
     (tmp_path / "wiki" / "synthesis").mkdir(parents=True)
     (tmp_path / "wiki-works" / "test").mkdir(parents=True)
+    (tmp_path / "wiki-works" / "test" / "raw").mkdir(parents=True)
     (tmp_path / "memory" / "lancedb").mkdir(parents=True)
+    (tmp_path / "pdf-inbox").mkdir(parents=True)
 
     config = {
         "workspace": str(tmp_path),
         "projects": {
             "test": {"path": "wiki-works/test", "keywords": ["test", "prova", "esempio"]}
+        },
+        "pdf_inbox": {
+            "project_default": "test"
         },
         "thresholds": {
             "index_token_budget": 4000,

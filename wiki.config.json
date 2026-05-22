@@ -1,5 +1,8 @@
 {
   "workspace": "/path/to/workspace",
+  "pdf_inbox": {
+    "project_default": "ricerca"
+  },
   "projects": {
     "trading": {
       "path": "wiki-works/trading",
