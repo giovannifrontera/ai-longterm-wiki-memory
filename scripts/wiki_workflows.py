@@ -234,12 +234,7 @@ def cmd_lint(args, cfg):
 
         fs_paths = {
             str(md_file)
-            for root_name in _WIKI_ROOTS
-            if (Path(args.workspace) / root_name).is_dir()
-            for md_file in (Path(args.workspace) / root_name).rglob("*.md")
-            if md_file.name not in EXCLUDED_NAMES
-            and "raw" not in md_file.parts
-            and ".archive" not in md_file.parts
+            for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", []))
         }
         renames = detect_renames(db, fs_paths, args.workspace)
         for r in renames:
