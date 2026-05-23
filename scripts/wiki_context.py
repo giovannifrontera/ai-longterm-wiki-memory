@@ -74,10 +74,13 @@ def _run(args):
 
     seen: dict[str, dict] = {}
     for r in raw:
+        chunk = r.get("chunk_text") or ""
+        if not chunk:
+            continue
         path = r["path"]
         dist = float(r.get("_distance", 1.0))
         if path not in seen or dist < seen[path]["dist"]:
-            seen[path] = {"dist": dist, "chunk_text": r["chunk_text"]}
+            seen[path] = {"dist": dist, "chunk_text": chunk}
 
     top = sorted(seen.items(), key=lambda x: x[1]["dist"])[: args.k]
     if not top:
