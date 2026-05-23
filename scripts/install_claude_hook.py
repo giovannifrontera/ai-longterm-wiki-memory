@@ -102,7 +102,7 @@ def main() -> None:
         f'{args.python} "{script_str}"'
         f' --workspace "{workspace_str}"'
         f' --q "$CLAUDE_USER_PROMPT"'
-        f' --k {args.k}'
+        f" --k {args.k}"
     )
 
     # Check if already installed
