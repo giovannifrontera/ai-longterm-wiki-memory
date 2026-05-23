@@ -240,8 +240,18 @@ def cmd_lint(args, cfg):
         for r in renames:
             report.append({"type": "rename_detected", **r})
 
+        # Duplicate filename check
+        from collections import defaultdict
+        name_to_paths: dict[str, list[str]] = defaultdict(list)
+        for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
+            rel = os.path.relpath(str(md_file), args.workspace).replace("\\", "/")
+            name_to_paths[md_file.name].append(rel)
+        for filename, paths in name_to_paths.items():
+            if len(paths) > 1:
+                report.append({"type": "duplicate_filename", "filename": filename, "paths": sorted(paths)})
+
     errors = sum(1 for r in report if r["type"] in ("broken_link", "orphan_entry"))
-    warnings = sum(1 for r in report if r["type"] == "rename_detected")
+    warnings = sum(1 for r in report if r["type"] in ("rename_detected", "duplicate_filename"))
     orphans = sum(1 for r in report if r["type"] == "orphan_entry")
     broken = sum(1 for r in report if r["type"] == "broken_link")
     detail_parts = []
@@ -249,8 +259,12 @@ def cmd_lint(args, cfg):
         detail_parts.append(f"{orphans} orphan vectors removed")
     if broken:
         detail_parts.append(f"{broken} broken links")
-    if warnings:
-        detail_parts.append(f"{warnings} renames detected")
+    renames_count = sum(1 for r in report if r["type"] == "rename_detected")
+    duplicates_count = sum(1 for r in report if r["type"] == "duplicate_filename")
+    if renames_count:
+        detail_parts.append(f"{renames_count} renames detected")
+    if duplicates_count:
+        detail_parts.append(f"{duplicates_count} duplicate filenames")
     detail_str = ", ".join(detail_parts) if detail_parts else "no issues"
 
     status = {
