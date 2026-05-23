@@ -161,7 +161,7 @@ def test_api_stats_unembedded(server_client, tmp_workspace, monkeypatch):
 
     monkeypatch.setattr(wiki_lancedb, "get_db", lambda path: object())
     monkeypatch.setattr(wiki_lancedb, "ensure_table",
-                        lambda db, table_name="wiki_pages": FakeTable())
+                        lambda *args, **kwargs: FakeTable())
 
     resp = server_client.get("/api/stats")
     assert resp.status_code == 200
@@ -190,3 +190,29 @@ def test_api_stats_lint_status(server_client, tmp_workspace):
     assert lint["last_run"] == "2026-05-20T14:32:00"
     assert lint["errors"] == 0
     assert lint["warnings"] == 2
+    assert "detail" in lint, "Missing 'detail' field in lint_status"
+
+
+def test_api_lint_trigger(server_client, tmp_workspace, monkeypatch):
+    import subprocess
+    fake_result = subprocess.CompletedProcess(
+        args=[], returncode=0,
+        stdout="Lint complete. 0 errors, 0 warnings.", stderr=""
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake_result)
+
+    resp = server_client.post("/api/lint")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert "output" in data
+
+
+def test_api_lint_conflict(server_client, monkeypatch):
+    import wiki_server
+    wiki_server._lint_busy = True
+    try:
+        resp = server_client.post("/api/lint")
+        assert resp.status_code == 409
+    finally:
+        wiki_server._lint_busy = False

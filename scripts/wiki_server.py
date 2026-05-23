@@ -239,6 +239,30 @@ async def api_stats():
     return JSONResponse(_build_stats())
 
 
+@app.post("/api/lint")
+async def api_lint():
+    global _lint_busy
+    if _lint_busy:
+        return JSONResponse({"error": "lint already running"}, status_code=409)
+    _lint_busy = True
+    try:
+        import subprocess
+        wiki_py = Path(__file__).parent.parent / "wiki.py"
+        result = subprocess.run(
+            [sys.executable, str(wiki_py), "lint", "--workspace", _workspace, "--full"],
+            capture_output=True, text=True, timeout=60,
+        )
+        output = (result.stdout + result.stderr).strip()
+        status = "ok" if result.returncode == 0 else "error"
+        return JSONResponse({"status": status, "output": output})
+    except subprocess.TimeoutExpired:
+        return JSONResponse({"status": "error", "output": "lint timed out"}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"status": "error", "output": str(e)}, status_code=500)
+    finally:
+        _lint_busy = False
+
+
 @app.get("/")
 async def index():
     html_path = Path(__file__).parent.parent / "frontend" / "index.html"
