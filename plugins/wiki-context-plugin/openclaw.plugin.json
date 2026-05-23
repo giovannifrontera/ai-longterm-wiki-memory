@@ -34,11 +34,6 @@
         "default": 3,
         "description": "Number of wiki pages to inject per prompt"
       },
-      "maxChars": {
-        "type": "integer",
-        "default": 600,
-        "description": "Maximum characters per page excerpt"
-      },
       "timeoutMs": {
         "type": "integer",
         "default": 15000,

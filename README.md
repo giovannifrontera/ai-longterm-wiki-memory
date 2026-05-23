@@ -104,7 +104,7 @@ Agent has relevant context — regardless of intent classification
 
 Install with one command (Claude Code):
 ```bash
-py scripts/install_claude_hook.py --workspace /path/to/workspace
+py scripts/install_claude_code_hook.py --workspace /path/to/workspace
 ```
 
 ### Multi-project routing
@@ -334,11 +334,15 @@ Works with any agent that can read files and call bash commands. First-class sup
 
 **Context injection — one command:**
 ```bash
-py scripts/install_claude_hook.py --workspace /absolute/path/to/workspace
+py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
 ```
 Writes the `UserPromptSubmit` hook into `.claude/settings.json`. Idempotent — safe to re-run. Restart Claude Code to activate.
 
 Options: `--k 5` (more pages), `--python python3` (non-Windows), `--dry-run` (preview only).
+
+> **Two injection mechanisms:** `wiki_context.py` is called by two independent systems — Claude Code (via the `UserPromptSubmit` hook installed by `scripts/install_claude_code_hook.py`) and OpenClaw (via the TypeScript plugin `plugins/wiki-context-plugin/` using the `before_prompt_build` hook). Both call the same `wiki_context.py` script and produce identical results.
+>
+> **Pattern note:** Patterns in `exclude_from_index` use Python `fnmatch` (not recursive glob). `wiki/sub/**` matches only one level deep — use explicit patterns like `wiki/sub/*.md` instead.
 
 **Add to `CLAUDE.md`:**
 ```
@@ -617,13 +621,13 @@ Every command outputs JSON to stdout:
 
 ### v1.1.1 — 2026-05-21
 
-**New:** `scripts/install_claude_hook.py` — one-command `UserPromptSubmit` hook installer for Claude Code. Auto-detects Python executable, idempotent, supports `--dry-run`.
+**New:** `scripts/install_claude_code_hook.py` — one-command `UserPromptSubmit` hook installer for Claude Code. Auto-detects Python executable, idempotent, supports `--dry-run`.
 
 **Bug fixes — Python core**
 - **[CRITICAL]** `wiki_lancedb.py`: `table_names()` deprecated — fixed to `.list_tables().tables`
 - **[HIGH]** `wiki_workflows.py` `cmd_ingest`: mid-loop `shutil.move` failure left files without vectors — tracked and reversed on exception
 - **[MEDIUM]** `cmd_lint`: rename detection scoped to `wiki/` and `wiki-works/` only
-- **[MEDIUM]** `install_claude_hook.py`: atomic write for `settings.json`
+- **[MEDIUM]** `install_claude_code_hook.py`: atomic write for `settings.json`
 
 **Bug fixes — OpenClaw plugin**
 - **[CRITICAL]** `src/index.ts`: `api.getConfig()` doesn't exist — fixed to `api.config`

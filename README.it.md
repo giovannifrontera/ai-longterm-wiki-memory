@@ -98,7 +98,7 @@ L'agente ha sempre il contesto rilevante — indipendente dalla classificazione 
 
 Installazione con un comando (Claude Code):
 ```bash
-py scripts/install_claude_hook.py --workspace /path/al/workspace
+py scripts/install_claude_code_hook.py --workspace /path/al/workspace
 ```
 
 ### Routing multi-progetto
@@ -322,11 +322,15 @@ Funziona con qualsiasi agente che può leggere file e chiamare bash. Supporto na
 
 **Iniezione contesto — un solo comando:**
 ```bash
-py scripts/install_claude_hook.py --workspace /path/assoluto/al/workspace
+py scripts/install_claude_code_hook.py --workspace /path/assoluto/al/workspace
 ```
 Scrive l'hook `UserPromptSubmit` in `.claude/settings.json`. Idempotente — sicuro da rieseguire. Riavvia Claude Code per attivare.
 
 Opzioni: `--k 5` (più pagine), `--python python3` (non-Windows), `--dry-run` (anteprima).
+
+> **Due meccanismi di iniezione:** `wiki_context.py` viene chiamato da due sistemi indipendenti — Claude Code (tramite l'hook `UserPromptSubmit` installato da `scripts/install_claude_code_hook.py`) e OpenClaw (tramite il plugin TypeScript `plugins/wiki-context-plugin/` con l'hook `before_prompt_build`). Entrambi chiamano lo stesso `wiki_context.py` e producono risultati identici.
+>
+> **Nota sui pattern:** I pattern in `exclude_from_index` usano Python `fnmatch` (non glob ricorsivo). `wiki/sub/**` matcha solo un livello — usa pattern espliciti come `wiki/sub/*.md`.
 
 **Aggiungi a `CLAUDE.md`:**
 ```
@@ -551,13 +555,13 @@ Ogni comando produce JSON su stdout:
 
 ### v1.1.1 — 2026-05-21
 
-**Novità:** `scripts/install_claude_hook.py` — installer dell'hook `UserPromptSubmit` per Claude Code in un solo comando. Auto-rileva l'eseguibile Python, idempotente, supporta `--dry-run`.
+**Novità:** `scripts/install_claude_code_hook.py` — installer dell'hook `UserPromptSubmit` per Claude Code in un solo comando. Auto-rileva l'eseguibile Python, idempotente, supporta `--dry-run`.
 
 **Bug fix — core Python**
 - **[CRITICO]** `wiki_lancedb.py`: `table_names()` deprecato — corretto a `.list_tables().tables`
 - **[ALTO]** `wiki_workflows.py` `cmd_ingest`: fallimento `shutil.move` a metà loop lasciava file senza vettori — tracciati e ripristinati su eccezione
 - **[MEDIO]** `cmd_lint`: rilevamento rename limitato a `wiki/` e `wiki-works/`
-- **[MEDIO]** `install_claude_hook.py`: scrittura atomica per `settings.json`
+- **[MEDIO]** `install_claude_code_hook.py`: scrittura atomica per `settings.json`
 
 **Bug fix — plugin OpenClaw**
 - **[CRITICO]** `src/index.ts`: `api.getConfig()` non esiste — corretto a `api.config`
