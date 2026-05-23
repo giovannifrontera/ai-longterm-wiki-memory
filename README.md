@@ -6,7 +6,7 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-2.2.0-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.3.0-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
@@ -344,7 +344,9 @@ Options: `--k 5` (more pages), `--python python3` (non-Windows), `--dry-run` (pr
 >
 > **Pattern note:** Patterns in `exclude_from_index` use Python `fnmatch` (not recursive glob). `wiki/sub/**` matches only one level deep — use explicit patterns like `wiki/sub/*.md` instead.
 
-**Add to `CLAUDE.md`:**
+**Agent-driven setup:** if a Claude Code agent opens this repo, `CLAUDE.md` in the root provides all instructions automatically.
+
+**Add to your workspace `CLAUDE.md`:**
 ```
 At the start of every session, read <workspace>/wiki-session.md.
 Before any wiki operation, re-read skills/wiki-core.md.
@@ -354,29 +356,34 @@ Before any wiki operation, re-read skills/wiki-core.md.
 
 [OpenClaw](https://github.com/openclaw/openclaw) connects Telegram, Discord, and web to AI agents with bash/file/browser access on your filesystem.
 
-**Context injection plugin:**
+**Agent-driven setup (recommended):** provide the repo link in chat and ask the OpenClaw agent to install. It reads `AGENTS.md` and runs:
+```bash
+py scripts/setup_openclaw.py --workspace /absolute/path/to/workspace
+```
+The script auto-detects the OpenClaw config file and injects the plugin entry. Pass `--config /path/to/config.json` if auto-detection fails.
+
+**Manual setup:**
 ```bash
 cd plugins/wiki-context-plugin
 npm install && npm run build
-openclaw plugins install local:./plugins/wiki-context-plugin
 ```
 
-Add to OpenClaw gateway config:
-```json
-{ "plugins": { "allow": ["wiki-context-plugin"] } }
-```
-
-Plugin settings:
+Add to OpenClaw config:
 ```json
 {
-  "wiki-context-plugin": {
-    "workspace": "/absolute/path/to/workspace",
-    "wikiContextScript": "/absolute/path/to/scripts/wiki_context.py",
-    "pythonExecutable": "python",
-    "k": 3
-  }
+  "plugins": [
+    {
+      "id": "wiki-context-plugin",
+      "path": "/absolute/path/to/ai-wiki-system/plugins/wiki-context-plugin",
+      "config": {
+        "workspace": "/absolute/path/to/workspace",
+        "wikiContextScript": "/absolute/path/to/scripts/wiki_context.py",
+        "pythonExecutable": "python",
+        "k": 3
+      }
+    }
+  ]
 }
-```
 
 ### What the agent does automatically
 
@@ -465,7 +472,7 @@ Minimal config:
 ```bash
 py scripts/wiki.py rebuild --workspace my-workspace/
 pytest tests/ -v
-# Expected: 56 passed
+# Expected: 92 passed
 ```
 
 ### Dependencies
@@ -555,15 +562,35 @@ Every command outputs JSON to stdout:
 
 | File | Contents |
 |------|----------|
+| [`AGENTS.md`](AGENTS.md) | Agent install instructions (any agent — Claude Code or OpenClaw) |
+| [`CLAUDE.md`](CLAUDE.md) | Claude Code-specific install guide |
 | [`DESIGN.md`](DESIGN.md) | Full architecture, workflow specs, LanceDB schema, conflict resolution |
 | [`SPEC.md`](SPEC.md) | Implementation spec, error states table, integration detail |
 | [`skills/wiki-core.md`](skills/wiki-core.md) | The skill file to install in your agent |
-| [`AGENTS_PATCH.md`](AGENTS_PATCH.md) | Exact text to add to your `AGENTS.md` or `CLAUDE.md` |
+| [`AGENTS_PATCH.md`](AGENTS_PATCH.md) | Exact text to add to your workspace `AGENTS.md` or `CLAUDE.md` |
 | [`README.it.md`](README.it.md) | Documentazione in italiano |
 
 ---
 
 ## Changelog
+
+### v2.3.0 — 2026-05-24
+
+**Agent-driven installation**
+
+- `AGENTS.md` — universal install instructions read by any agent (Claude Code, OpenClaw, Codex, …): two clear paths with imperative commands and no ambiguous placeholders
+- `CLAUDE.md` — Claude Code-specific install guide; auto-loaded by the agent when opening the repo
+- `scripts/setup_openclaw.py` — one-command OpenClaw setup: auto-detects config in 5 standard locations (Windows AppData, Linux XDG, home, local), injects plugin entry atomically, idempotent
+
+**lint improvements**
+
+- `exclude_from_index` support in `cmd_lint`: pages matching configured patterns are filtered from LanceDB indexing; patterns use `fnmatch` (explicit, not recursive glob)
+- Duplicate filename detection in `cmd_lint --full`: warns when two pages share the same basename across different directories
+- `wiki_context.py`: reads `chunk_text` directly from LanceDB instead of re-reading files on every query — eliminates redundant disk I/O
+
+**Testing:** 92 tests, all green (unchanged)
+
+---
 
 ### v2.2.0 — 2026-05-23
 

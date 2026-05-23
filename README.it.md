@@ -1,6 +1,6 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-2.2.0-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/versione-2.3.0-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-92%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
@@ -332,7 +332,9 @@ Opzioni: `--k 5` (più pagine), `--python python3` (non-Windows), `--dry-run` (a
 >
 > **Nota sui pattern:** I pattern in `exclude_from_index` usano Python `fnmatch` (non glob ricorsivo). `wiki/sub/**` matcha solo un livello — usa pattern espliciti come `wiki/sub/*.md`.
 
-**Aggiungi a `CLAUDE.md`:**
+**Setup guidato da agente:** se un agente Claude Code apre questo repo, `CLAUDE.md` nella root fornisce tutte le istruzioni automaticamente.
+
+**Aggiungi al `CLAUDE.md` del tuo workspace:**
 ```
 All'inizio di ogni sessione leggi <workspace>/wiki-session.md.
 Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md.
@@ -342,29 +344,34 @@ Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md.
 
 [OpenClaw](https://github.com/openclaw/openclaw) connette Telegram, Discord e web ad agenti AI con accesso bash/file/browser sul filesystem locale.
 
-**Plugin iniezione contesto:**
+**Setup guidato da agente (consigliato):** fornisci il link al repo in chat e chiedi all'agente OpenClaw di occuparsi dell'installazione. Legge `AGENTS.md` ed esegue:
+```bash
+py scripts/setup_openclaw.py --workspace /path/assoluto/al/workspace
+```
+Lo script rileva automaticamente il file di config OpenClaw e inietta l'entry del plugin. Passa `--config /path/al/config.json` se il rilevamento automatico fallisce.
+
+**Setup manuale:**
 ```bash
 cd plugins/wiki-context-plugin
 npm install && npm run build
-openclaw plugins install local:./plugins/wiki-context-plugin
 ```
 
 Aggiungi al config OpenClaw:
 ```json
-{ "plugins": { "allow": ["wiki-context-plugin"] } }
-```
-
-Settings plugin:
-```json
 {
-  "wiki-context-plugin": {
-    "workspace": "/path/assoluto/al/workspace",
-    "wikiContextScript": "/path/assoluto/scripts/wiki_context.py",
-    "pythonExecutable": "python",
-    "k": 3
-  }
+  "plugins": [
+    {
+      "id": "wiki-context-plugin",
+      "path": "/path/assoluto/ai-wiki-system/plugins/wiki-context-plugin",
+      "config": {
+        "workspace": "/path/assoluto/al/workspace",
+        "wikiContextScript": "/path/assoluto/scripts/wiki_context.py",
+        "pythonExecutable": "python",
+        "k": 3
+      }
+    }
+  ]
 }
-```
 
 ### Cosa fa l'agente automaticamente
 
@@ -490,14 +497,34 @@ Ogni comando produce JSON su stdout:
 
 ## Documentazione
 
+- [`AGENTS.md`](AGENTS.md) — istruzioni installazione per qualsiasi agente (Claude Code o OpenClaw)
+- [`CLAUDE.md`](CLAUDE.md) — guida installazione specifica per Claude Code
 - [`DESIGN.md`](DESIGN.md) — architettura completa, workflow, schema LanceDB, risoluzione conflitti
 - [`SPEC.md`](SPEC.md) — spec implementativa, tabella stati di errore, dettagli integrazione
 - [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
-- [`AGENTS_PATCH.md`](AGENTS_PATCH.md) — testo esatto da aggiungere a `AGENTS.md` o `CLAUDE.md`
+- [`AGENTS_PATCH.md`](AGENTS_PATCH.md) — testo esatto da aggiungere all'`AGENTS.md` del workspace
 
 ---
 
 ## Changelog
+
+### v2.3.0 — 2026-05-24
+
+**Installazione guidata da agente**
+
+- `AGENTS.md` — istruzioni universali lette da qualsiasi agente (Claude Code, OpenClaw, Codex, …): due percorsi chiari con comandi imperativi senza placeholder ambigui
+- `CLAUDE.md` — guida installazione specifica Claude Code; caricata automaticamente dall'agente all'apertura del repo
+- `scripts/setup_openclaw.py` — setup OpenClaw in un comando: rileva il config in 5 posizioni standard (Windows AppData, Linux XDG, home, locale), inietta l'entry del plugin atomicamente, idempotente
+
+**Miglioramenti lint**
+
+- Supporto `exclude_from_index` in `cmd_lint`: le pagine che corrispondono ai pattern configurati vengono escluse dall'indicizzazione LanceDB; i pattern usano `fnmatch` (esplicito, non glob ricorsivo)
+- Rilevamento filename duplicati in `cmd_lint --full`: avvisa quando due pagine condividono lo stesso basename in directory diverse
+- `wiki_context.py`: legge `chunk_text` direttamente da LanceDB invece di rileggere i file ad ogni query — elimina I/O disco ridondante
+
+**Test:** 92 test, tutti green (invariato)
+
+---
 
 ### v2.2.0 — 2026-05-23
 
