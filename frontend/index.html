@@ -941,6 +941,12 @@ function switchTab(tab) {
     statsPane.style.display = 'none';
     btnGraph.classList.add('active');
     btnStats.classList.remove('active');
+    if (typeof simulation !== 'undefined' && simulation) {
+      const { w, h } = gsize();
+      if (w > 0 && h > 0) {
+        simulation.force('center', d3.forceCenter(w / 2, h / 2).strength(0.06)).alpha(0.1).restart();
+      }
+    }
   }
 }
 
@@ -970,7 +976,10 @@ function _renderEmptyItem(msg) {
 async function loadStats() {
   try {
     const r = await fetch('/api/stats');
-    if (!r.ok) return;
+    if (!r.ok) {
+      document.getElementById('lint-status-block').textContent = 'Errore caricamento dati (' + r.status + ')';
+      return;
+    }
     const d = await r.json();
 
     document.getElementById('kpi-pages').textContent = d.summary.total_pages;
@@ -1019,9 +1028,11 @@ async function loadStats() {
     }
 
     const alEl = document.getElementById('auto-lint-info');
-    alEl.textContent = d.auto_lint.enabled
-      ? 'Auto-lint: ogni ' + d.auto_lint.interval_hours + 'h'
-      : 'Auto-lint: disabilitato (imposta frontend.lint_interval_hours in wiki.config.json)';
+    if (d.auto_lint) {
+      alEl.textContent = d.auto_lint.enabled
+        ? 'Auto-lint: ogni ' + d.auto_lint.interval_hours + 'h'
+        : 'Auto-lint: disabilitato (imposta frontend.lint_interval_hours in wiki.config.json)';
+    }
   } catch (e) {
     console.error('loadStats error', e);
   }
