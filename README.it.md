@@ -443,6 +443,20 @@ Ogni comando produce JSON su stdout:
 
 ## Changelog
 
+### v2.2.0 — 2026-05-23
+
+**Novità: Dashboard Osservabilità** (tab Stats)
+
+- `GET /api/stats` — restituisce KPI: pagine totali, embedded, stale (≥7 gg), non indicizzate, top-10 pagine più interrogate, stato lint e schedule auto-lint
+- `POST /api/lint` — avvia `wiki.py lint` in un subprocess; risponde 409 se un lint è già in corso
+- Scheduler auto-lint asyncio: legge `frontend.lint_interval_hours` da `config.yaml`; esegue lint in background automaticamente; espone `next_run_iso` in `/api/stats`
+- `cmd_lint` scrive `.wiki-lint-status.json` atomicamente (tmp → rename) dopo ogni run, registrando `timestamp`, `warnings`, `errors`, `exit_code`
+- Tab `[Stats]` nel frontend: 4 KPI card (Pages, Embedded, Stale, Unembedded), lista top-queried (max 10), pulsante trigger lint con feedback 409
+
+**Test:** 10 nuovi test — **92 totali, tutti green**
+
+---
+
 ### v2.1.0 — 2026-05-22
 
 **Novità: Interfaccia web** (`wiki.py serve`)
