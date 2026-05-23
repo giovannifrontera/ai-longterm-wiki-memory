@@ -502,7 +502,7 @@ Ogni comando produce JSON su stdout:
 - [`DESIGN.md`](DESIGN.md) — architettura completa, workflow, schema LanceDB, risoluzione conflitti
 - [`SPEC.md`](SPEC.md) — spec implementativa, tabella stati di errore, dettagli integrazione
 - [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
-- [`AGENTS_PATCH.md`](AGENTS_PATCH.md) — testo esatto da aggiungere all'`AGENTS.md` del workspace
+- [`AGENTS_PATCH.md`](AGENTS_PATCH.md) — *(legacy)* istruzioni d'uso — ora iniettate automaticamente dagli script di setup
 
 ---
 
@@ -512,9 +512,10 @@ Ogni comando produce JSON su stdout:
 
 **Installazione guidata da agente**
 
-- `AGENTS.md` — istruzioni universali lette da qualsiasi agente (Claude Code, OpenClaw, Codex, …): due percorsi chiari con comandi imperativi senza placeholder ambigui
-- `CLAUDE.md` — guida installazione specifica Claude Code; caricata automaticamente dall'agente all'apertura del repo
+- `AGENTS.md` — istruzioni universali lette da qualsiasi agente (Claude Code, OpenClaw, Codex, …): due percorsi chiari con comandi imperativi, protocollo d'uso inline — nessun file patch separato necessario
+- `CLAUDE.md` — guida installazione + uso specifica Claude Code; caricata automaticamente dall'agente all'apertura del repo
 - `scripts/setup_openclaw.py` — setup OpenClaw in un comando: rileva il config in 5 posizioni standard (Windows AppData, Linux XDG, home, locale), inietta l'entry del plugin atomicamente, idempotente
+- `install_claude_code_hook.py` e `setup_openclaw.py` iniettano automaticamente le istruzioni d'uso nel `CLAUDE.md` / `AGENTS.md` del workspace dopo il setup — idempotente tramite sentinel `<!-- ai-wiki-system:usage-start -->`
 
 **Miglioramenti lint**
 
