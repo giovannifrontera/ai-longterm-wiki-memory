@@ -1,5 +1,6 @@
 """Implementazione dei workflow INGEST, QUERY, LINT, INDEX, REBUILD, SESSION-UPDATE."""
 
+import fnmatch
 import json
 import os
 import shutil
@@ -158,7 +159,7 @@ _WIKI_ROOTS = ("wiki", "wiki-works")
 _MAX_FILE_BYTES = 200_000
 
 
-def _wiki_md_files(workspace: str):
+def _wiki_md_files(workspace: str, exclude_patterns: list = None):
     """Itera solo su wiki/ e wiki-works/, salta file >200 KB."""
     for root_name in _WIKI_ROOTS:
         root = Path(workspace) / root_name
@@ -171,6 +172,10 @@ def _wiki_md_files(workspace: str):
                 continue
             if md_file.stat().st_size > _MAX_FILE_BYTES:
                 continue
+            if exclude_patterns:
+                rel_path = os.path.relpath(str(md_file), workspace).replace("\\", "/")
+                if any(fnmatch.fnmatch(rel_path, pattern) for pattern in exclude_patterns):
+                    continue
             yield md_file
 
 
@@ -183,7 +188,7 @@ def cmd_rebuild(args, cfg):
         db.drop_table("wiki_pages")
 
     count = 0
-    for md_file in _wiki_md_files(args.workspace):
+    for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
         rel = os.path.relpath(str(md_file), args.workspace).replace("\\", "/")
         chunks = embed_file(
             str(md_file),
@@ -205,7 +210,7 @@ def cmd_lint(args, cfg):
 
     if args.full:
         import re
-        for md_file in _wiki_md_files(args.workspace):
+        for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
             try:
                 text = md_file.read_text(encoding="utf-8")
             except OSError:

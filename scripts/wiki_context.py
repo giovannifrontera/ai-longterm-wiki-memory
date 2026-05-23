@@ -13,6 +13,7 @@ Exit codes:
 """
 
 import argparse
+import fnmatch
 import json
 import os
 import sys
@@ -72,12 +73,15 @@ def _run(args):
     # Over-fetch per deduplicare per pagina, poi prendere i top-k
     raw = table.search(vector).limit(args.k * 4).to_list()
 
+    exclude_patterns = cfg.get("exclude_from_index", [])
     seen: dict[str, dict] = {}
     for r in raw:
         chunk = r.get("chunk_text") or ""
         if not chunk:
             continue
         path = r["path"]
+        if any(fnmatch.fnmatch(path, p) for p in exclude_patterns):
+            continue
         dist = float(r.get("_distance", 1.0))
         if path not in seen or dist < seen[path]["dist"]:
             seen[path] = {"dist": dist, "chunk_text": chunk}
