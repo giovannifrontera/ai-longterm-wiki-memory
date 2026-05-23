@@ -6,14 +6,14 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-2.1.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-82%20passed-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-2.2.0-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
-[Quick Start](#quick-start) · [Features](#features) · [PDF Ingestion](#multi-source-pdf-ingestion-v20) · [Web Interface](#web-interface-v21) · [Integration](#integration) · [CLI Reference](#cli-reference)
+[Quick Start](#quick-start) · [Features](#features) · [PDF Ingestion](#multi-source-pdf-ingestion-v20) · [Web Interface](#web-interface-v21) · [Dashboard](#dashboard-observability-v22) · [Integration](#integration) · [CLI Reference](#cli-reference)
 
 ---
 
@@ -123,6 +123,9 @@ When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds
 ### Token-budget index
 `index.md` respects a configurable token budget (default 4000). When exceeded, applies reduction strategies automatically — so the agent can navigate even on small context windows.
 
+### Observability dashboard
+A `[Stats]` tab in the web frontend gives a live view of the wiki health: pages embedded vs unembedded, stale pages (configurable threshold), top-10 most queried pages, lint status with last-run timestamp and warning count, and the auto-lint schedule. Lint can also be triggered manually from the browser.
+
 ---
 
 ## Multi-source PDF ingestion *(v2.0)*
@@ -230,7 +233,56 @@ py scripts/wiki.py serve --workspace . --host 0.0.0.0
 ngrok http 7331
 ```
 
-**The frontend is strictly read-only.** All wiki workflows (ingest, query, lint) continue to function identically whether the server is running or not.
+**The frontend is strictly read-only for wiki content.** All wiki workflows (ingest, query, lint) continue to function identically whether the server is running or not.
+
+---
+
+## Dashboard Observability *(v2.2)*
+
+A `[Stats]` tab built into the web server shows the health of the wiki at a glance — no CLI commands needed.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  AI Wiki Memory  [Graph] [Stats]          🔍  ● live     │
+├──────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  │
+│  │ 47 pages │  │ 312 chunk│  │ 94% cov. │  │ 3 stale │  │
+│  └──────────┘  └──────────┘  └──────────┘  └─────────┘  │
+│                                                          │
+│  Top queried                  Lint status                │
+│  ─────────────────            ─────────────────────────  │
+│  rag.md           12q         Last run: 2026-05-23       │
+│  openai.md         8q         0 errors · 2 warnings      │
+│                               [Run lint now]             │
+│  Auto-lint: every 24h · next: 2026-05-24 08:15           │
+└──────────────────────────────────────────────────────────┘
+```
+
+**What it shows:**
+- **4 KPI cards** — total pages, total chunks, embedding coverage %, stale pages count
+- **Top queried** — top-10 pages by query frequency, aggregated from `.wiki-query-log.jsonl`
+- **Stale pages** — pages not modified in more than `thresholds.staleness_days` (default 90 days)
+- **Unembedded pages** — files present on disk but missing from LanceDB
+- **Lint status** — last run timestamp, error count, warning count (from `.wiki-lint-status.json`)
+- **Auto-lint schedule** — next scheduled run if `frontend.lint_interval_hours` is configured
+
+**Lint trigger:** The "Run lint now" button calls `POST /api/lint`. Returns 409 if a lint run is already in progress.
+
+**Auto-lint:** Add to `wiki.config.json` to run lint automatically on a schedule:
+```json
+{
+  "frontend": {
+    "lint_interval_hours": 24
+  }
+}
+```
+The scheduler starts with the server. If omitted, auto-lint is disabled and the button remains available for manual runs.
+
+**REST endpoints (auth-protected):**
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/stats` | Returns all observability data as JSON |
+| `POST /api/lint` | Triggers `wiki.py lint --full`; 409 if busy |
 
 ---
 
@@ -250,11 +302,12 @@ workspace/
 │   ├── wiki_lancedb.py       ← LanceDB ops (upsert, staging, rename detection)
 │   ├── wiki_index.py         ← token-budget index generation
 │   ├── wiki_graph.py         ← node/edge builder (filesystem + LanceDB, 30s cache)
-│   └── wiki_server.py        ← FastAPI server: REST, WebSocket, file watcher, JWT auth
+│   └── wiki_server.py        ← FastAPI server: REST, WebSocket, JWT auth, stats/lint endpoints
 ├── frontend/
 │   └── index.html            ← SPA: D3.js graph + page panel + WebSocket client
 ├── pdf-inbox/                ← all PDF sources converge here
 │   └── .registry.json        ← hash + status per PDF (atomic write)
+├── .wiki-lint-status.json    ← last lint result (written atomically by cmd_lint)
 ├── wiki/                     ← permanent knowledge base
 │   ├── entities/             ← people, tools, organizations
 │   ├── concepts/             ← theories, strategies, definitions

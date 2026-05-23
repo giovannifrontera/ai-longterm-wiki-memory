@@ -4,6 +4,14 @@ Future development ideas, not yet scheduled. Ordered by estimated priority.
 
 ---
 
+## [DONE] Dashboard Observability — v2.2.0
+
+**Status:** Released in v2.2.0 (2026-05-23)
+
+`GET /api/stats` aggregates all wiki health data (embedding coverage, stale pages, top-queried, lint status, auto-lint schedule) into a single JSON endpoint. A `[Stats]` tab in the web frontend displays 4 KPI cards, top-10 queried pages, and a lint trigger button. `POST /api/lint` runs `wiki.py lint --full` on demand with a 409 guard against concurrent runs. Auto-lint scheduler reads `frontend.lint_interval_hours` from `wiki.config.json` and runs lint automatically in the background.
+
+---
+
 ## [DONE] Pre-prompt context injection — v1.1.0
 
 **Status:** Released in v1.1.0 (2026-05-21)
@@ -140,4 +148,4 @@ For systematic reviews: a `wiki.py export --format prisma --workspace wiki-works
 
 ---
 
-*Updated: 2026-05-21*
+*Updated: 2026-05-23*

@@ -4,6 +4,14 @@ Idee di sviluppo future, non ancora pianificate. Ordinate per priorità stimata.
 
 ---
 
+## [DONE] Dashboard Osservabilità — v2.2.0
+
+**Stato:** Rilasciato in v2.2.0 (2026-05-23)
+
+`GET /api/stats` aggrega tutti i dati di salute del wiki (copertura embedding, pagine stale, top-queried, stato lint, schedule auto-lint) in un unico endpoint JSON. Un tab `[Stats]` nel frontend mostra 4 KPI card, top-10 pagine più interrogate e un pulsante per avviare il lint. `POST /api/lint` esegue `wiki.py lint --full` on demand con guardia 409 contro esecuzioni concorrenti. Lo scheduler auto-lint legge `frontend.lint_interval_hours` da `wiki.config.json` e lancia il lint automaticamente in background.
+
+---
+
 ## [DONE] Pre-prompt context injection — v1.1.0
 
 **Stato:** Rilasciato in v1.1.0 (2026-05-21)
@@ -140,4 +148,4 @@ Per revisioni sistematiche: comando `wiki.py export --format prisma --workspace 
 
 ---
 
-*Aggiornato: 2026-05-21*
+*Aggiornato: 2026-05-23*

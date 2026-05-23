@@ -43,6 +43,30 @@ normalmente con la checklist in `skills/wiki-core.md`.
 
 ---
 
+## Dashboard Wiki (v2.2+)
+
+Quando il server è in esecuzione (`wiki.py serve`), il tab `[Stats]` è disponibile su `http://localhost:7331`.
+
+**Cosa controllare:**
+- Copertura embedding — le pagine presenti su disco ma non in LanceDB compaiono in "Senza embedding"
+- Pagine stale — pagine non modificate negli ultimi 90 giorni (configurabile)
+- Più interrogate — pagine più accedute dall'ultima rotazione del log
+- Stato lint — risultato dell'ultimo run con conteggio errori/warning
+
+**Endpoint REST** (stessa auth dell'interfaccia web):
+```
+GET  /api/stats   → snapshot completo di osservabilità in JSON
+POST /api/lint    → avvia wiki.py lint --full (risponde 409 se già in corso)
+```
+
+**Auto-lint:** aggiungere a `wiki.config.json` per lanciare il lint automaticamente ogni N ore:
+```json
+{ "frontend": { "lint_interval_hours": 24 } }
+```
+Se assente, il lint viene eseguito solo manualmente (pulsante nel tab Stats o CLI `wiki.py lint`).
+
+---
+
 ## PDF Inbox
 
 Quando l'utente invia un file PDF in chat o fornisce un percorso/URL:

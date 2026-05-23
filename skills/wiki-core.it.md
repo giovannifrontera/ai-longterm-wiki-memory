@@ -139,6 +139,10 @@ Leggi il JSON di output e presenta i problemi trovati all'utente.
 Il lint risolve automaticamente: entry orfane, rename, vettori stale.
 Per broken links e duplicati: presenta le opzioni all'utente.
 
+Dopo ogni lint, `.wiki-lint-status.json` viene scritto atomicamente nella root del workspace con `last_run`, `errors`, `warnings`, `detail`. Il tab Stats del frontend legge questo file. Non leggere né scrivere questo file manualmente.
+
+Se il server è in esecuzione, puoi avviare il lint anche con `POST /api/lint` o il pulsante "Esegui lint ora" nel tab `[Stats]` — utile per verificare il risultato visivamente senza uscire dal browser.
+
 ## §regola-synthesis — Quando creare una pagina wiki
 
 Crea una pagina wiki SOLO se soddisfa **tutti** questi criteri:
