@@ -25,4 +25,27 @@ Restart Claude Code after installation.
 
 ## Usage
 
-Once installed, every prompt is automatically preceded by a `<wiki-context>` block containing the most relevant wiki pages. See `AGENTS_PATCH.md` for the full usage protocol.
+Once installed, every prompt is automatically preceded by a `<wiki-context>` block containing the most relevant wiki pages.
+
+### Session start
+
+At the start of every session:
+1. Read `wiki-session.md` for the current wiki context
+2. Before any wiki operation, re-read `skills/wiki-core.md` to verify the protocol
+
+Never write directly into `wiki/` or `wiki-works/`. Always use `wiki.py`.
+
+### Wiki context injection
+
+When a `<wiki-context>` block is present, use it directly — do not run `wiki.py query` again for the same prompt.
+
+### Dashboard (v2.2+)
+
+`wiki.py serve` exposes a `[Stats]` tab at `http://localhost:7331` with embedding coverage, stale pages, lint status, and top queried pages.
+
+### PDF inbox
+
+```
+wiki.py ingest-pdf --workspace <path> --file <path|url>
+wiki.py scan-inbox --workspace <path>
+```
