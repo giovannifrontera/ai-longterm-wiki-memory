@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-install_claude_hook.py — installs wiki_context.py as a UserPromptSubmit hook in .claude/settings.json
+install_claude_code_hook.py — installs wiki_context.py as a UserPromptSubmit hook in .claude/settings.json
 
 Usage:
-    py scripts/install_claude_hook.py --workspace /path/to/workspace
+    py scripts/install_claude_code_hook.py --workspace /path/to/workspace
 
 The script:
 - Reads or creates .claude/settings.json in the workspace
@@ -102,7 +102,7 @@ def main() -> None:
         f'{args.python} "{script_str}"'
         f' --workspace "{workspace_str}"'
         f' --q "$CLAUDE_USER_PROMPT"'
-        f' --k {args.k}'
+        f" --k {args.k}"
     )
 
     # Check if already installed

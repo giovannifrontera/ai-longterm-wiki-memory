@@ -1,5 +1,6 @@
 """Implementazione dei workflow INGEST, QUERY, LINT, INDEX, REBUILD, SESSION-UPDATE."""
 
+import fnmatch
 import json
 import os
 import shutil
@@ -158,7 +159,7 @@ _WIKI_ROOTS = ("wiki", "wiki-works")
 _MAX_FILE_BYTES = 200_000
 
 
-def _wiki_md_files(workspace: str):
+def _wiki_md_files(workspace: str, exclude_patterns: list = None):
     """Itera solo su wiki/ e wiki-works/, salta file >200 KB."""
     for root_name in _WIKI_ROOTS:
         root = Path(workspace) / root_name
@@ -171,6 +172,10 @@ def _wiki_md_files(workspace: str):
                 continue
             if md_file.stat().st_size > _MAX_FILE_BYTES:
                 continue
+            if exclude_patterns:
+                rel_path = os.path.relpath(str(md_file), workspace).replace("\\", "/")
+                if any(fnmatch.fnmatch(rel_path, pattern) for pattern in exclude_patterns):
+                    continue
             yield md_file
 
 
@@ -183,7 +188,7 @@ def cmd_rebuild(args, cfg):
         db.drop_table("wiki_pages")
 
     count = 0
-    for md_file in _wiki_md_files(args.workspace):
+    for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
         rel = os.path.relpath(str(md_file), args.workspace).replace("\\", "/")
         chunks = embed_file(
             str(md_file),
@@ -205,7 +210,7 @@ def cmd_lint(args, cfg):
 
     if args.full:
         import re
-        for md_file in _wiki_md_files(args.workspace):
+        for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
             try:
                 text = md_file.read_text(encoding="utf-8")
             except OSError:
@@ -229,19 +234,24 @@ def cmd_lint(args, cfg):
 
         fs_paths = {
             str(md_file)
-            for root_name in _WIKI_ROOTS
-            if (Path(args.workspace) / root_name).is_dir()
-            for md_file in (Path(args.workspace) / root_name).rglob("*.md")
-            if md_file.name not in EXCLUDED_NAMES
-            and "raw" not in md_file.parts
-            and ".archive" not in md_file.parts
+            for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", []))
         }
         renames = detect_renames(db, fs_paths, args.workspace)
         for r in renames:
             report.append({"type": "rename_detected", **r})
 
+        # Duplicate filename check — reuse fs_paths, normalize to lowercase for case-insensitive comparison
+        from collections import defaultdict
+        name_to_paths: dict[str, list[str]] = defaultdict(list)
+        for path_str in fs_paths:
+            rel = os.path.relpath(path_str, args.workspace).replace("\\", "/")
+            name_to_paths[Path(path_str).name.lower()].append(rel)
+        for filename, paths in name_to_paths.items():
+            if len(paths) > 1:
+                report.append({"type": "duplicate_filename", "filename": filename, "paths": sorted(paths)})
+
     errors = sum(1 for r in report if r["type"] in ("broken_link", "orphan_entry"))
-    warnings = sum(1 for r in report if r["type"] == "rename_detected")
+    warnings = sum(1 for r in report if r["type"] in ("rename_detected", "duplicate_filename"))
     orphans = sum(1 for r in report if r["type"] == "orphan_entry")
     broken = sum(1 for r in report if r["type"] == "broken_link")
     detail_parts = []
@@ -249,8 +259,12 @@ def cmd_lint(args, cfg):
         detail_parts.append(f"{orphans} orphan vectors removed")
     if broken:
         detail_parts.append(f"{broken} broken links")
-    if warnings:
-        detail_parts.append(f"{warnings} renames detected")
+    renames_count = sum(1 for r in report if r["type"] == "rename_detected")
+    duplicates_count = sum(1 for r in report if r["type"] == "duplicate_filename")
+    if renames_count:
+        detail_parts.append(f"{renames_count} renames detected")
+    if duplicates_count:
+        detail_parts.append(f"{duplicates_count} duplicate filenames")
     detail_str = ", ".join(detail_parts) if detail_parts else "no issues"
 
     status = {

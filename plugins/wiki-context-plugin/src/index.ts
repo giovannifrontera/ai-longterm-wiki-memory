@@ -15,7 +15,6 @@ export default definePluginEntry({
       wikiContextScript?: string;
       pythonExecutable?: string;
       k?: number;
-      maxChars?: number;
       timeoutMs?: number;
     };
 
@@ -38,7 +37,6 @@ export default definePluginEntry({
 
     const python = cfg.pythonExecutable ?? "python";
     const k = String(cfg.k ?? 3);
-    const maxChars = String(cfg.maxChars ?? 600);
     const timeoutMs = cfg.timeoutMs ?? 15_000;
 
     api.on(
@@ -65,7 +63,6 @@ export default definePluginEntry({
               "--workspace", workspace,
               "--q", userText,
               "--k", k,
-              "--max-chars", maxChars,
             ],
             { encoding: "utf-8", timeout: timeoutMs }
           ).trim();
