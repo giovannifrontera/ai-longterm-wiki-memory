@@ -240,12 +240,12 @@ def cmd_lint(args, cfg):
         for r in renames:
             report.append({"type": "rename_detected", **r})
 
-        # Duplicate filename check
+        # Duplicate filename check — reuse fs_paths, normalize to lowercase for case-insensitive comparison
         from collections import defaultdict
         name_to_paths: dict[str, list[str]] = defaultdict(list)
-        for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
-            rel = os.path.relpath(str(md_file), args.workspace).replace("\\", "/")
-            name_to_paths[md_file.name].append(rel)
+        for path_str in fs_paths:
+            rel = os.path.relpath(path_str, args.workspace).replace("\\", "/")
+            name_to_paths[Path(path_str).name.lower()].append(rel)
         for filename, paths in name_to_paths.items():
             if len(paths) > 1:
                 report.append({"type": "duplicate_filename", "filename": filename, "paths": sorted(paths)})
