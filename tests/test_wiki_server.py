@@ -109,3 +109,110 @@ def test_websocket_auth_rejected_without_cookie(auth_client):
     except Exception:
         rejected = True
     assert rejected, "Expected WebSocket to be rejected without valid cookie"
+
+
+def test_api_stats_endpoint(server_client, tmp_workspace):
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    for key in ("summary", "top_queried", "stale_pages", "unembedded_pages",
+                "lint_status", "auto_lint"):
+        assert key in data, f"Missing key: {key}"
+    assert "total_pages" in data["summary"]
+    assert "total_chunks" in data["summary"]
+    assert "embedding_coverage_pct" in data["summary"]
+    assert "stale_pages_count" in data["summary"]
+    assert isinstance(data["top_queried"], list)
+    assert isinstance(data["stale_pages"], list)
+
+
+def test_api_stats_top_queried(server_client, tmp_workspace):
+    import json as _json
+    log_path = tmp_workspace / ".wiki-query-log.jsonl"
+    entries = [
+        {"ts": "2026-05-20T10:00:00", "q": "what is RAG?", "paths": ["wiki/concepts/rag.md"]},
+        {"ts": "2026-05-20T10:01:00", "q": "explain RAG", "paths": ["wiki/concepts/rag.md"]},
+        {"ts": "2026-05-20T10:02:00", "q": "openai models", "paths": ["wiki/entities/openai.md"]},
+    ]
+    log_path.write_text("\n".join(_json.dumps(e) for e in entries), encoding="utf-8")
+
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    top = resp.json()["top_queried"]
+    assert len(top) >= 1
+    paths_in_top = [item["path"] for item in top]
+    assert "wiki/concepts/rag.md" in paths_in_top
+    rag_item = next(i for i in top if i["path"] == "wiki/concepts/rag.md")
+    assert rag_item["query_count"] == 2
+
+
+def test_api_stats_unembedded(server_client, tmp_workspace, monkeypatch):
+    import pandas as pd
+    import wiki_lancedb
+
+    (tmp_workspace / "wiki" / "concepts" / "embedding.md").write_text(
+        "---\ntitle: Embedding\n---\n\nContent.", encoding="utf-8"
+    )
+
+    class FakeTable:
+        def to_pandas(self):
+            # Solo rag.md e' embedded
+            return pd.DataFrame({"path": ["wiki/concepts/rag.md"]})
+
+    monkeypatch.setattr(wiki_lancedb, "get_db", lambda path: object())
+    monkeypatch.setattr(wiki_lancedb, "ensure_table",
+                        lambda *args, **kwargs: FakeTable())
+
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    unembedded = resp.json()["unembedded_pages"]
+    unembedded_paths = [u["path"] for u in unembedded]
+    assert "wiki/concepts/embedding.md" in unembedded_paths
+    assert "wiki/concepts/rag.md" not in unembedded_paths
+
+
+def test_api_stats_lint_status(server_client, tmp_workspace):
+    import json
+    status_data = {
+        "last_run": "2026-05-20T14:32:00",
+        "errors": 0,
+        "warnings": 2,
+        "detail": "2 orphan vectors removed",
+    }
+    (tmp_workspace / ".wiki-lint-status.json").write_text(
+        json.dumps(status_data), encoding="utf-8"
+    )
+
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    lint = resp.json()["lint_status"]
+    assert lint is not None
+    assert lint["last_run"] == "2026-05-20T14:32:00"
+    assert lint["errors"] == 0
+    assert lint["warnings"] == 2
+    assert "detail" in lint, "Missing 'detail' field in lint_status"
+
+
+def test_api_lint_trigger(server_client, tmp_workspace, monkeypatch):
+    import subprocess
+    fake_result = subprocess.CompletedProcess(
+        args=[], returncode=0,
+        stdout="Lint complete. 0 errors, 0 warnings.", stderr=""
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake_result)
+
+    resp = server_client.post("/api/lint")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert "output" in data
+
+
+def test_api_lint_conflict(server_client, monkeypatch):
+    import wiki_server
+    wiki_server._lint_busy = True
+    try:
+        resp = server_client.post("/api/lint")
+        assert resp.status_code == 409
+    finally:
+        wiki_server._lint_busy = False

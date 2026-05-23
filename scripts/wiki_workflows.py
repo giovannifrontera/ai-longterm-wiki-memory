@@ -240,6 +240,38 @@ def cmd_lint(args, cfg):
         for r in renames:
             report.append({"type": "rename_detected", **r})
 
+    errors = sum(1 for r in report if r["type"] in ("broken_link", "orphan_entry"))
+    warnings = sum(1 for r in report if r["type"] == "rename_detected")
+    orphans = sum(1 for r in report if r["type"] == "orphan_entry")
+    broken = sum(1 for r in report if r["type"] == "broken_link")
+    detail_parts = []
+    if orphans:
+        detail_parts.append(f"{orphans} orphan vectors removed")
+    if broken:
+        detail_parts.append(f"{broken} broken links")
+    if warnings:
+        detail_parts.append(f"{warnings} renames detected")
+    detail_str = ", ".join(detail_parts) if detail_parts else "no issues"
+
+    status = {
+        "last_run": datetime.now().isoformat(timespec="seconds"),
+        "errors": errors,
+        "warnings": warnings,
+        "detail": detail_str,
+    }
+    status_path = Path(args.workspace) / ".wiki-lint-status.json"
+    fd, tmp_p = tempfile.mkstemp(dir=args.workspace, prefix=".wiki-lint-status.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(status, f)
+        os.replace(tmp_p, status_path)
+    except Exception:
+        try:
+            os.unlink(tmp_p)
+        except OSError:
+            pass
+        raise
+
     ok({"op": "lint", "full": args.full, "issues": report, "issues_count": len(report)})
 
 

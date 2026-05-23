@@ -428,6 +428,14 @@ body::before {
 }
 #empty-state .es-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
 #empty-state p { font-size: 13px; }
+
+/* Stats tab */
+.view-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 13px; margin-left: 8px; }
+.view-btn.active { border-color: var(--accent); color: var(--accent); }
+.kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+.kpi-val { font-size: 28px; font-weight: 700; color: var(--text); font-family: 'DM Mono', monospace; }
+.kpi-label { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+@media (max-width: 700px) { #kpi-grid { grid-template-columns: 1fr 1fr !important; } }
 </style>
 </head>
 <body>
@@ -450,6 +458,10 @@ body::before {
   </div>
   <div id="project-tabs"></div>
   <div class="header-right">
+    <div class="view-tabs">
+      <button id="btn-graph" class="view-btn active" onclick="switchTab('graph')">Graf</button>
+      <button id="btn-stats" class="view-btn" onclick="switchTab('stats')">Stats</button>
+    </div>
     <span id="stats-pill">0 nodi · 0 archi</span>
     <div class="search-wrap">
       <input id="search" type="text" placeholder="cerca...">
@@ -467,6 +479,44 @@ body::before {
     <div id="empty-state">
       <div class="es-icon">◈</div>
       <p>Nessun nodo trovato</p>
+    </div>
+  </div>
+  <div id="stats-pane" style="display:none; padding:24px; overflow-y:auto; flex:1; box-sizing:border-box;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="margin:0; font-size:18px; color:var(--text);">Statistiche Wiki</h2>
+      <button onclick="loadStats()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:13px;">Aggiorna</button>
+    </div>
+
+    <div id="kpi-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+      <div class="kpi-card"><div class="kpi-val" id="kpi-pages">—</div><div class="kpi-label">Pagine</div></div>
+      <div class="kpi-card"><div class="kpi-val" id="kpi-chunks">—</div><div class="kpi-label">Chunk</div></div>
+      <div class="kpi-card"><div class="kpi-val" id="kpi-coverage">—</div><div class="kpi-label">Copertura</div></div>
+      <div class="kpi-card"><div class="kpi-val" id="kpi-stale">—</div><div class="kpi-label">Stale</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;">
+      <div>
+        <h3 style="font-size:13px;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;">Più interrogate</h3>
+        <ul id="top-queried-list" style="list-style:none;padding:0;margin:0;font-size:13px;"></ul>
+      </div>
+      <div>
+        <h3 style="font-size:13px;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;">Pagine stale (&gt;90gg)</h3>
+        <ul id="stale-list" style="list-style:none;padding:0;margin:0;font-size:13px;"></ul>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <div>
+        <h3 style="font-size:13px;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;">Senza embedding</h3>
+        <ul id="unembedded-list" style="list-style:none;padding:0;margin:0;font-size:13px;"></ul>
+      </div>
+      <div>
+        <h3 style="font-size:13px;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;">Lint</h3>
+        <div id="lint-status-block" style="font-size:13px;color:var(--muted);margin-bottom:12px;">—</div>
+        <button id="btn-run-lint" onclick="runLint()" style="background:var(--accent);border:none;color:#000;padding:6px 14px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;">Esegui lint ora</button>
+        <span id="lint-spinner" style="display:none;margin-left:8px;color:var(--muted);">...</span>
+        <div id="auto-lint-info" style="margin-top:12px;font-size:12px;color:var(--muted);"></div>
+      </div>
     </div>
   </div>
   <aside id="page-pane">
@@ -874,6 +924,139 @@ async function init() {
 }
 
 init();
+
+function switchTab(tab) {
+  const graphPane = document.getElementById('graph-pane');
+  const statsPane = document.getElementById('stats-pane');
+  const btnGraph = document.getElementById('btn-graph');
+  const btnStats = document.getElementById('btn-stats');
+  if (tab === 'stats') {
+    graphPane.style.display = 'none';
+    statsPane.style.display = 'block';
+    btnGraph.classList.remove('active');
+    btnStats.classList.add('active');
+    loadStats();
+  } else {
+    graphPane.style.display = '';
+    statsPane.style.display = 'none';
+    btnGraph.classList.add('active');
+    btnStats.classList.remove('active');
+    if (typeof simulation !== 'undefined' && simulation) {
+      const { w, h } = gsize();
+      if (w > 0 && h > 0) {
+        simulation.force('center', d3.forceCenter(w / 2, h / 2).strength(0.06)).alpha(0.1).restart();
+      }
+    }
+  }
+}
+
+function _buildListItem(leftText, rightText, rightColor) {
+  const li = document.createElement('li');
+  li.style.cssText = 'display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);';
+  const left = document.createElement('span');
+  left.textContent = leftText;
+  left.style.color = 'var(--text)';
+  li.appendChild(left);
+  if (rightText !== undefined) {
+    const right = document.createElement('span');
+    right.textContent = rightText;
+    right.style.color = rightColor || 'var(--muted)';
+    li.appendChild(right);
+  }
+  return li;
+}
+
+function _renderEmptyItem(msg) {
+  const li = document.createElement('li');
+  li.style.color = 'var(--muted)';
+  li.textContent = msg;
+  return li;
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/api/stats');
+    if (!r.ok) {
+      document.getElementById('lint-status-block').textContent = 'Errore caricamento dati (' + r.status + ')';
+      return;
+    }
+    const d = await r.json();
+
+    document.getElementById('kpi-pages').textContent = d.summary.total_pages;
+    document.getElementById('kpi-chunks').textContent = d.summary.total_chunks;
+    document.getElementById('kpi-coverage').textContent = d.summary.embedding_coverage_pct + '%';
+    document.getElementById('kpi-stale').textContent = d.summary.stale_pages_count;
+
+    const tqEl = document.getElementById('top-queried-list');
+    tqEl.replaceChildren();
+    if (!d.top_queried.length) {
+      tqEl.appendChild(_renderEmptyItem('nessuna query registrata'));
+    } else {
+      d.top_queried.forEach(item => {
+        tqEl.appendChild(_buildListItem(item.title || item.path, item.query_count + 'q', 'var(--accent)'));
+      });
+    }
+
+    const staleEl = document.getElementById('stale-list');
+    staleEl.replaceChildren();
+    if (!d.stale_pages.length) {
+      staleEl.appendChild(_renderEmptyItem('nessuna pagina stale'));
+    } else {
+      d.stale_pages.slice(0, 10).forEach(item => {
+        staleEl.appendChild(_buildListItem(item.title || item.path, item.age_days + 'gg', 'var(--gold)'));
+      });
+    }
+
+    const unembEl = document.getElementById('unembedded-list');
+    unembEl.replaceChildren();
+    if (!d.unembedded_pages.length) {
+      unembEl.appendChild(_renderEmptyItem('tutte le pagine sono indicizzate'));
+    } else {
+      d.unembedded_pages.forEach(item => {
+        unembEl.appendChild(_buildListItem(item.path, undefined, undefined));
+      });
+    }
+
+    const lintEl = document.getElementById('lint-status-block');
+    if (d.lint_status) {
+      const dt = new Date(d.lint_status.last_run).toLocaleString('it-IT');
+      const parts = [dt, d.lint_status.errors + ' errori', d.lint_status.warnings + ' avvisi'];
+      if (d.lint_status.detail) parts.push(d.lint_status.detail);
+      lintEl.textContent = parts.join(' · ');
+    } else {
+      lintEl.textContent = 'Lint mai eseguito';
+    }
+
+    const alEl = document.getElementById('auto-lint-info');
+    if (d.auto_lint) {
+      alEl.textContent = d.auto_lint.enabled
+        ? 'Auto-lint: ogni ' + d.auto_lint.interval_hours + 'h'
+        : 'Auto-lint: disabilitato (imposta frontend.lint_interval_hours in wiki.config.json)';
+    }
+  } catch (e) {
+    console.error('loadStats error', e);
+  }
+}
+
+async function runLint() {
+  const btn = document.getElementById('btn-run-lint');
+  const spinner = document.getElementById('lint-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  try {
+    const r = await fetch('/api/lint', { method: 'POST' });
+    if (r.status === 409) {
+      alert('Lint già in esecuzione, attendi.');
+      return;
+    }
+    await loadStats();
+  } catch (e) {
+    console.error('runLint error', e);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
 </script>
 </body>
 </html>
