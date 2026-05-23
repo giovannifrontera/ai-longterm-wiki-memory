@@ -304,6 +304,7 @@ async def _broadcast(message: dict) -> None:
 async def startup():
     asyncio.create_task(_file_watcher())
     asyncio.create_task(_query_log_watcher())
+    asyncio.create_task(_auto_lint_task())
 
 
 async def _file_watcher():
@@ -345,3 +346,20 @@ async def _query_log_watcher():
                     await _broadcast({"type": "query_hit", "paths": paths})
             except json.JSONDecodeError:
                 pass
+
+
+async def _auto_lint_task():
+    interval = _cfg.get("frontend", {}).get("lint_interval_hours")
+    if not interval:
+        return
+    while True:
+        await asyncio.sleep(float(interval) * 3600)
+        import subprocess
+        wiki_py = Path(__file__).parent.parent / "wiki.py"
+        try:
+            subprocess.run(
+                [sys.executable, str(wiki_py), "lint", "--workspace", _workspace, "--full"],
+                capture_output=True, text=True, timeout=120,
+            )
+        except Exception:
+            pass
