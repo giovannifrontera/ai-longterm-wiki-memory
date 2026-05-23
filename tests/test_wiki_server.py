@@ -144,3 +144,49 @@ def test_api_stats_top_queried(server_client, tmp_workspace):
     assert "wiki/concepts/rag.md" in paths_in_top
     rag_item = next(i for i in top if i["path"] == "wiki/concepts/rag.md")
     assert rag_item["query_count"] == 2
+
+
+def test_api_stats_unembedded(server_client, tmp_workspace, monkeypatch):
+    import pandas as pd
+    import wiki_lancedb
+
+    (tmp_workspace / "wiki" / "concepts" / "embedding.md").write_text(
+        "---\ntitle: Embedding\n---\n\nContent.", encoding="utf-8"
+    )
+
+    class FakeTable:
+        def to_pandas(self):
+            # Solo rag.md e' embedded
+            return pd.DataFrame({"path": ["wiki/concepts/rag.md"]})
+
+    monkeypatch.setattr(wiki_lancedb, "get_db", lambda path: object())
+    monkeypatch.setattr(wiki_lancedb, "ensure_table",
+                        lambda db, table_name="wiki_pages": FakeTable())
+
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    unembedded = resp.json()["unembedded_pages"]
+    unembedded_paths = [u["path"] for u in unembedded]
+    assert "wiki/concepts/embedding.md" in unembedded_paths
+    assert "wiki/concepts/rag.md" not in unembedded_paths
+
+
+def test_api_stats_lint_status(server_client, tmp_workspace):
+    import json
+    status_data = {
+        "last_run": "2026-05-20T14:32:00",
+        "errors": 0,
+        "warnings": 2,
+        "detail": "2 orphan vectors removed",
+    }
+    (tmp_workspace / ".wiki-lint-status.json").write_text(
+        json.dumps(status_data), encoding="utf-8"
+    )
+
+    resp = server_client.get("/api/stats")
+    assert resp.status_code == 200
+    lint = resp.json()["lint_status"]
+    assert lint is not None
+    assert lint["last_run"] == "2026-05-20T14:32:00"
+    assert lint["errors"] == 0
+    assert lint["warnings"] == 2
