@@ -1,7 +1,7 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-2.3.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-92%20passati-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/versione-3.0.1-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-106%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
@@ -507,6 +507,24 @@ Ogni comando produce JSON su stdout:
 ---
 
 ## Changelog
+
+### v3.0.1 — 2026-05-24
+
+**Correzione architettura + fix animazione nodi + mockup UI**
+
+- **Architettura corretta**: la v3.0.0 aveva erroneamente eliminato la promozione e limitato `wiki/` alla sola identità. Design corretto: `wiki-works/<topic>/` = conoscenza di dominio permanente; `wiki/` = conoscenza trasversale distillata (promossa autonomamente); `wiki/identity/` = pattern comportamentali (self-reflect). Tutti i layer indicizzati insieme in LanceDB.
+- **fix: animazione nodi** — `wiki_context.py` (l'hook che gira ad ogni prompt) ora scrive i path delle pagine recuperate in `.wiki-query-log.jsonl`. Il watcher WebSocket del server li rileva e trasmette `query_hit` al frontend, che anima i nodi attivati in oro in tempo reale.
+- **Mockup UI**: illustrazioni SVG del grafo (con animazione query-hit) e della tab Stats aggiunte al README.
+- Tutti i file per umani (README, DESIGN, ROADMAP, AGENTS.md, CLAUDE.md, skill) aggiornati per riflettere l'architettura corretta.
+
+### v3.0.0 — 2026-05-24
+
+**Cervello a tre layer + Promozione Autonoma + Deduplicazione Semantica + Auto-Riflessione**
+
+- **Architettura a tre layer**: `wiki-works/<topic>/` contiene conoscenza profonda permanente per dominio. `wiki/` contiene conoscenza trasversale distillata, promossa autonomamente dall'agente. `wiki/identity/` contiene i pattern comportamentali appresi dalle correzioni. Tutti e tre i layer sono indicizzati insieme in LanceDB — un unico spazio vettoriale.
+- **Promozione autonoma**: l'agente promuove pagine da `wiki-works/` a `wiki/` senza conferma dell'utente quando la conoscenza è trasversale (rilevante in ≥2 domini, recuperata in ≥3 query).
+- **Deduplicazione semantica**: `lint --full` rileva duplicati semantici via cosine similarity. Similarity ≥ 0.90 → candidato auto-merge. 0.75–0.90 → warning. Configurabile via `thresholds.dedup_auto` e `thresholds.dedup_warn`.
+- **Auto-riflessione autonoma**: `wiki.py behavior-log` logga correzioni comportamentali. `wiki.py self-reflect` aggiorna autonomamente `wiki/identity/` quando un pattern supera la soglia (`self_reflection.correction_threshold`, default 3). Nessuna approvazione umana richiesta.
 
 ### v2.3.0 — 2026-05-24
 

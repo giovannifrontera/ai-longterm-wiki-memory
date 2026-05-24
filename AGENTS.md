@@ -64,6 +64,38 @@ The wiki is your persistent brain. Use it actively:
 Never write directly into the `wiki/` or `wiki-works/` directories.
 Always use `wiki.py` for any write operation.
 
+### Architecture (v3) — three layers, one brain
+
+All layers are indexed together in LanceDB. The agent accesses everything through semantic search.
+
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per topic: concepts, research, entities | INGEST workflow |
+| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously | Agent (autonomous) |
+| **Identity** | `wiki/identity/` | Values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
+
+Promote a page from `wiki-works/` to `wiki/` autonomously when it is relevant in ≥2 topics and retrieved in ≥3 queries. Use `wiki.py ingest` targeting `wiki/concepts/<slug>.md.tmp`.
+
+### Behavioral feedback (v3)
+
+When the user corrects your behavior ("stop doing X", "always do Y", "never do Z"):
+
+1. Log the correction:
+   ```
+   wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
+   ```
+2. At end of session, run self-reflection:
+   ```
+   wiki.py self-reflect --workspace <path>
+   ```
+   This reads `.wiki-behavior-log.jsonl`, detects recurring patterns (≥3 occurrences), and autonomously updates `wiki/identity/`. Run it without asking the user.
+
+### Lint — semantic duplicates (v3)
+
+`wiki.py lint --full` now reports `semantic_duplicate` issues. Handle them:
+- `action: auto_merge` (similarity ≥ 0.90): merge the two pages, ingest the merged version, delete originals
+- `action: warn` (0.75–0.90): show the user and ask whether to merge
+
 ### Wiki context injection
 
 When context injection is active, every prompt arrives preceded by a block like:

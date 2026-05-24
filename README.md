@@ -6,8 +6,8 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-2.3.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-3.0.1-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-orange)](https://claude.ai/code)
@@ -18,6 +18,18 @@ Your AI agent forgets everything between sessions. This gives it a structured, s
 ---
 
 </div>
+
+## Interface
+
+**Graph view** — the D3 force graph shows all wiki pages as nodes, coloured by category. When the agent retrieves pages to answer a prompt, the activated nodes pulse gold in real time via WebSocket.
+
+![Graph view with query-hit animation](docs/images/graph-view.svg)
+
+**Stats tab** — embedding coverage, most-queried pages, stale pages, semantic duplicate warnings, and auto-lint countdown.
+
+![Stats dashboard](docs/images/stats-tab.svg)
+
+---
 
 ## The problem
 
@@ -573,6 +585,24 @@ Every command outputs JSON to stdout:
 ---
 
 ## Changelog
+
+### v3.0.1 — 2026-05-24
+
+**Architecture correction + node animation fix + UI mockups**
+
+- **Architecture corrected**: v3.0.0 incorrectly removed the promotion mechanism and limited `wiki/` to identity only. Correct design: `wiki-works/<topic>/` = permanent domain knowledge; `wiki/` = cross-domain distilled knowledge (autonomously promoted); `wiki/identity/` = behavioral patterns (self-reflect). All layers indexed together in LanceDB.
+- **fix: node animation** — `wiki_context.py` (the hook that runs on every prompt) now writes retrieved page paths to `.wiki-query-log.jsonl`. The server's WebSocket watcher picks these up and broadcasts `query_hit` to the frontend, which animates the activated nodes gold in real time.
+- **UI mockups**: SVG illustrations of the graph view (with query-hit animation) and the Stats tab added to the README.
+- All human-facing docs (README, DESIGN, ROADMAP, AGENTS.md, CLAUDE.md, skills) updated to reflect the corrected architecture.
+
+### v3.0.0 — 2026-05-24
+
+**Three-layer brain + Autonomous Promotion + Semantic Deduplication + Self-Reflection**
+
+- **Three-layer architecture**: `wiki-works/<topic>/` stores permanent deep knowledge per domain. `wiki/` holds cross-domain distilled knowledge, promoted autonomously by the agent. `wiki/identity/` stores behavioral patterns learned from corrections. All three layers are indexed together in LanceDB — one unified vector space.
+- **Autonomous promotion**: the agent promotes pages from `wiki-works/` to `wiki/` without user confirmation when knowledge is cross-domain (relevant in ≥2 topics, retrieved in ≥3 queries).
+- **Semantic deduplication**: `lint --full` detects semantic duplicates via cosine similarity. Similarity ≥ 0.90 → auto-merge candidate. 0.75–0.90 → warning. Configurable via `thresholds.dedup_auto` and `thresholds.dedup_warn`.
+- **Autonomous self-reflection**: `wiki.py behavior-log` logs behavioral corrections. `wiki.py self-reflect` autonomously updates `wiki/identity/` when a pattern exceeds the threshold (`self_reflection.correction_threshold`, default 3). No human approval required.
 
 ### v2.3.0 — 2026-05-24
 

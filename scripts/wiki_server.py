@@ -39,7 +39,7 @@ app = FastAPI(docs_url=None, redoc_url=None)
 def configure(workspace: str, cfg: dict, no_auth: bool) -> None:
     global _workspace, _cfg, _no_auth, _secret_key, _jwt_secret, _session_days
     import hmac
-    _workspace = workspace
+    _workspace = os.path.abspath(workspace)
     _cfg = cfg
     _no_auth = no_auth
     frontend = cfg.get("frontend", {})
@@ -247,7 +247,7 @@ async def api_lint():
     _lint_busy = True
     try:
         import subprocess
-        wiki_py = Path(__file__).parent.parent / "wiki.py"
+        wiki_py = Path(__file__).parent / "wiki.py"
         result = subprocess.run(
             [sys.executable, str(wiki_py), "lint", "--workspace", _workspace, "--full"],
             capture_output=True, text=True, timeout=60,
@@ -355,7 +355,7 @@ async def _auto_lint_task():
     while True:
         await asyncio.sleep(float(interval) * 3600)
         import subprocess
-        wiki_py = Path(__file__).parent.parent / "wiki.py"
+        wiki_py = Path(__file__).parent / "wiki.py"
         try:
             subprocess.run(
                 [sys.executable, str(wiki_py), "lint", "--workspace", _workspace, "--full"],

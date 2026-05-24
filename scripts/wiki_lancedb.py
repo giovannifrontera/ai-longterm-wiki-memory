@@ -101,6 +101,63 @@ def query_similar(db, vector: list[float], k: int = 5, path_prefix: str = None) 
     return q.to_list()
 
 
+def find_semantic_duplicates(
+    db,
+    auto_threshold: float = 0.90,
+    warn_threshold: float = 0.75,
+) -> list[dict]:
+    """
+    Trova coppie di pagine semanticamente simili confrontando i vettori chunk_id==0.
+    Esclude le pagine wiki/ (identity layer) dal confronto.
+    Ritorna lista ordinata per similarity decrescente con campo action:
+      'auto_merge' se similarity >= auto_threshold
+      'warn'       se warn_threshold <= similarity < auto_threshold
+    """
+    import numpy as np
+
+    table = ensure_table(db)
+    df = table.to_pandas()
+    if df.empty:
+        return []
+
+    df0 = df[df["chunk_id"] == 0].copy()
+    df0 = df0[~df0["path"].str.startswith("wiki/")]
+    df0 = df0.drop_duplicates(subset=["path"])
+    if len(df0) < 2:
+        return []
+
+    paths = df0["path"].tolist()
+    vectors = np.array(df0["vector"].tolist(), dtype=np.float32)
+
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1.0, norms)
+    vectors = vectors / norms
+
+    sim_matrix = vectors @ vectors.T
+
+    results = []
+    n = len(paths)
+    for i in range(n):
+        for j in range(i + 1, n):
+            sim = float(sim_matrix[i, j])
+            if sim >= auto_threshold:
+                results.append({
+                    "page_a": paths[i],
+                    "page_b": paths[j],
+                    "similarity": round(sim, 4),
+                    "action": "auto_merge",
+                })
+            elif sim >= warn_threshold:
+                results.append({
+                    "page_a": paths[i],
+                    "page_b": paths[j],
+                    "similarity": round(sim, 4),
+                    "action": "warn",
+                })
+
+    return sorted(results, key=lambda x: x["similarity"], reverse=True)
+
+
 def detect_renames(db, filesystem_paths: set[str], workspace: str) -> list[dict]:
     """Confronta LanceDB vs filesystem per rilevare file rinominati.
 

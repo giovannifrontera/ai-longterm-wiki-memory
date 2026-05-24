@@ -139,12 +139,11 @@ Per revisioni sistematiche: comando `wiki.py export --format prisma --workspace 
 
 ---
 
-## [IDEA] wiki-works → wiki promotion automatica
+## [FATTO in v3] wiki-works → wiki promozione autonoma
 
-**Stato:** Idea grezza  
-**Effort:** Basso
+**Stato:** Implementato in v3.0.0 come comportamento autonomo dell'agente.
 
-`wiki.py promote --page wiki-works/trading/concepts/momentum.md` che sposta una pagina da wiki-works/ a wiki/, aggiorna tutti i link interni, e logga `promote` in log.md. Oggi il processo è manuale.
+L'agente promuove pagine da `wiki-works/<topic>/` a `wiki/` autonomamente quando la conoscenza è trasversale: rilevante in ≥2 argomenti e recuperata in ≥3 query distinte. Nessun comando manuale necessario — l'agente valuta i criteri di promozione dopo ogni INGEST e sintesi QUERY. Vedi `skills/wiki-core.it.md §promozione`.
 
 ---
 
