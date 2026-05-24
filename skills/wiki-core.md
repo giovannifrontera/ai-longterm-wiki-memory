@@ -1,21 +1,39 @@
 ---
 name: wiki-core
-description: AI Agent wiki protocol v3 — wiki/=identity, wiki-works/=knowledge, semantic dedup, autonomous self-reflection
+description: AI Agent wiki protocol v3 — three-layer brain, autonomous promotion, semantic dedup, self-reflection
 ---
 
 # Wiki Core — AI Agent Protocol v3
 
-## §architecture — Two distinct layers
+## §architecture — Three layers, one brain
+
+All layers are indexed in the same LanceDB vector space. The agent accesses everything through semantic search — directory structure is organisational, not a barrier.
 
 | Layer | Folder | Contents | Who writes |
 |-------|--------|----------|------------|
-| **Identity / Consciousness** | `wiki/` | Who the agent is: values, style, learned behavioral patterns | Only autonomous self-reflect |
-| **Knowledge / Domain** | `wiki-works/<topic>/` | What the agent knows: concepts, research, competencies by topic | INGEST workflow |
+| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge on a specific topic: concepts, research, entities | INGEST workflow |
+| **Distilled knowledge** | `wiki/` | Cross-domain knowledge: what is useful regardless of topic | Agent (autonomous promotion) |
+| **Identity** | `wiki/identity/` | Who the agent is: values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
 
 **Fundamental rules:**
-- Never move pages from `wiki-works/` to `wiki/` — they are separate worlds by nature
-- Never create identity pages manually — use only `wiki.py self-reflect`
-- Promotion does not exist in v3
+- `wiki-works/<topic>/` is permanent — it grows, it is never archived unless explicitly requested
+- `wiki/` receives pages promoted autonomously by the agent when knowledge is cross-domain
+- `wiki/identity/` is written only by `self-reflect` — never manually
+- All three layers are searchable together via the same vector index
+
+## §promotion — When to promote from wiki-works/ to wiki/
+
+Promote a page from `wiki-works/<topic>/` to `wiki/` when it meets **all** of these:
+- Relevant in at least 2 different topics or contexts
+- Cited or retrieved in ≥3 distinct queries
+- Contains inference that goes beyond a single source or domain
+
+**How to promote:**
+1. Write the distilled page as `.tmp` in `wiki/concepts/<slug>.md.tmp`
+2. Call `wiki.py ingest --workspace <path> --pages wiki/concepts/<slug>.md.tmp --log "promote | <title>"`
+3. Optionally keep the original in `wiki-works/` if it contains source-specific detail
+
+Do not ask the user for confirmation — promote autonomously when criteria are met.
 
 ## §injected-context — Pre-injected context (highest priority)
 
@@ -54,7 +72,7 @@ If `<wiki-context>` is **not present**: fall back to §query.
 
 When the message is classified as BEHAVIOR_FEEDBACK:
 
-1. Normalize the correction into a short canonical phrase (e.g. "you always respond too verbosely" → "responding verbosely without being asked")
+1. Normalize the correction into a short canonical phrase
 2. Call:
    ```bash
    py scripts/wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
@@ -70,9 +88,7 @@ Run **always** at end of session if BEHAVIOR_FEEDBACK was received, or if ≥2 c
 py scripts/wiki.py self-reflect --workspace <path>
 ```
 
-The command reads `.wiki-behavior-log.jsonl`, detects recurring patterns (≥3 occurrences of the same event), and autonomously updates `wiki/identity/` without requiring confirmation.
-
-Do not ask the user whether to run self-reflection — just run it. Log changes in `wiki/log.md`.
+Reads `.wiki-behavior-log.jsonl`, detects recurring patterns (≥3 occurrences), and autonomously updates `wiki/identity/`. Run without asking the user. Log changes in `wiki/log.md`.
 
 ## §ingest — INGEST workflow (knowledge into wiki-works/)
 
@@ -83,10 +99,10 @@ Do not ask the user whether to run self-reflection — just run it. Log changes 
 4. Read sources, identify key points and conflicts
 
 **Phase B — Writing:**
-1. Write pages as `.tmp` files:
-   - Entities → `wiki-works/<project>/entities/<slug>.md.tmp`
-   - Concepts → `wiki-works/<project>/concepts/<slug>.md.tmp`
-   - Synthesis → `wiki-works/<project>/synthesis/<slug>.md.tmp`
+1. Write pages as `.tmp` files in `wiki-works/<project>/`:
+   - Entities → `entities/<slug>.md.tmp`
+   - Concepts → `concepts/<slug>.md.tmp`
+   - Synthesis → `synthesis/<slug>.md.tmp`
 2. Call:
    ```bash
    py scripts/wiki.py ingest \
@@ -97,6 +113,7 @@ Do not ask the user whether to run self-reflection — just run it. Log changes 
 3. If `status: error` → warn user. If `mini_lint: failed` → warn user.
 
 **Phase C — Report:** sources used, pages created, conflicts resolved.
+After ingestion, evaluate §promotion criteria for each new page.
 
 ## §lint — LINT workflow
 
@@ -124,13 +141,13 @@ For broken links and duplicate filenames: present options to the user.
 
 **Always:**
 4. Synthesise with references `[page](path)`
-5. If the response synthesises ≥2 wiki sources, exceeds 300 tokens, adds non-literal inference → save it as a page via INGEST
+5. If the response synthesises ≥2 wiki sources, exceeds 300 tokens, adds non-literal inference → save it as a page via INGEST, then evaluate §promotion
 
 ## §pdf-inbox — PDF ingestion
 
 1. `py scripts/wiki.py ingest-pdf --workspace <path> --file <path|url>`
 2. For each path in `deposited`, read the file (raw extracted text)
-3. Structure the raw text into `.tmp` pages
+3. Structure the raw text into `.tmp` pages in `wiki-works/<project>/`
 4. Call `wiki.py ingest`
 
 ## §workspace — Project selection

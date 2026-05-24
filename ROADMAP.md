@@ -139,11 +139,11 @@ For systematic reviews: a `wiki.py export --format prisma --workspace wiki-works
 
 ---
 
-## [REMOVED in v3] wiki-works → wiki automatic promotion
+## [DONE in v3] wiki-works → wiki autonomous promotion
 
-**Status:** Removed in v3.0.0 — concept no longer applicable.
+**Status:** Implemented in v3.0.0 as autonomous agent behaviour.
 
-In v3, `wiki/` is the agent's identity layer (values, behavioral patterns). `wiki-works/` is domain knowledge. The two layers are separate by design and pages never cross between them. Use `wiki.py self-reflect` instead for autonomous identity updates.
+The agent promotes pages from `wiki-works/<topic>/` to `wiki/` autonomously when knowledge is cross-domain: relevant in ≥2 topics and retrieved in ≥3 distinct queries. No manual command needed — the agent evaluates promotion criteria after every INGEST and QUERY synthesis. See `skills/wiki-core.md §promotion`.
 
 ---
 

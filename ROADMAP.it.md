@@ -139,11 +139,11 @@ Per revisioni sistematiche: comando `wiki.py export --format prisma --workspace 
 
 ---
 
-## [RIMOSSO in v3] wiki-works → wiki promotion automatica
+## [FATTO in v3] wiki-works → wiki promozione autonoma
 
-**Stato:** Rimosso in v3.0.0 — concetto non più applicabile.
+**Stato:** Implementato in v3.0.0 come comportamento autonomo dell'agente.
 
-In v3, `wiki/` è il layer identità dell'agente (valori, pattern comportamentali). `wiki-works/` è la conoscenza di dominio. I due layer sono separati per design e le pagine non si spostano mai tra loro. Usare `wiki.py self-reflect` per aggiornamenti autonomi dell'identità.
+L'agente promuove pagine da `wiki-works/<topic>/` a `wiki/` autonomamente quando la conoscenza è trasversale: rilevante in ≥2 argomenti e recuperata in ≥3 query distinte. Nessun comando manuale necessario — l'agente valuta i criteri di promozione dopo ogni INGEST e sintesi QUERY. Vedi `skills/wiki-core.it.md §promozione`.
 
 ---
 

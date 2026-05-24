@@ -35,14 +35,17 @@ At the start of every session:
 
 Never write directly into `wiki/` or `wiki-works/`. Always use `wiki.py`.
 
-### Architecture (v3)
+### Architecture (v3) — three layers, one brain
+
+All layers are indexed together in LanceDB. The agent accesses everything through semantic search.
 
 | Layer | Directory | Contents | Who writes |
 |-------|-----------|----------|------------|
-| **Identity** | `wiki/` | Who the agent is: values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
-| **Knowledge** | `wiki-works/<topic>/` | What the agent knows: concepts, research, competencies | INGEST workflow |
+| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per topic: concepts, research, entities | INGEST workflow |
+| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously | Agent (autonomous) |
+| **Identity** | `wiki/identity/` | Values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
 
-Pages never move between layers. Promotion does not exist in v3.
+Promote a page from `wiki-works/` to `wiki/` autonomously when it is relevant in ≥2 topics and retrieved in ≥3 queries. Use `wiki.py ingest` targeting `wiki/concepts/<slug>.md.tmp`.
 
 ### Behavioral feedback (v3)
 

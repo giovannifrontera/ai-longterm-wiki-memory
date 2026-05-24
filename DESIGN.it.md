@@ -42,9 +42,10 @@ Questo elimina la classe intera di bug "index out of sync".
 
 | Strato | Descrizione | Natura |
 |--------|-------------|--------|
-| **Memoria Vettoriale** (LanceDB) | Retrieval semantico automatico | Implicita, ricostruibile |
-| **Livello 1** (wiki/) | Identità e coscienza dell'agente: valori, stile, pattern comportamentali appresi | Esplicita, permanente |
-| **Livello 2** (wiki-works/) | Conoscenza di dominio: ricerche, concetti, competenze per argomento | Esplicita, evolutiva |
+| **Memoria Vettoriale** (LanceDB) | Retrieval semantico automatico — tutti i layer indicizzati insieme | Implicita, ricostruibile |
+| **wiki-works/\<topic\>/** | Conoscenza di dominio profonda: concetti, ricerche, entità per argomento | Esplicita, permanente |
+| **wiki/** | Conoscenza distillata trasversale: promossa autonomamente quando rilevante in più domini | Esplicita, permanente |
+| **wiki/identity/** | Identità agente: valori, stile, pattern comportamentali appresi (solo self-reflect) | Esplicita, permanente |
 
 ---
 
@@ -457,7 +458,7 @@ Definisce per ogni wiki:
 - **Dormiente**: non si tocca, accessibile in lettura
 - **Archiviato**: `wiki-works/.archive/nome-progetto/` — LanceDB entries cancellate
 
-**Nota (v3):** La fusione da wiki-works/ a wiki/ non esiste più. `wiki/` è il layer identità dell'agente e viene aggiornato esclusivamente tramite `wiki.py self-reflect`. La conoscenza rimane in `wiki-works/`.
+**Nota (v3):** La promozione da wiki-works/ a wiki/ è autonoma — l'agente promuove quando la conoscenza è trasversale (rilevante in ≥2 domini, recuperata in ≥3 query). `wiki/identity/` è aggiornato solo tramite `wiki.py self-reflect`.
 
 ---
 

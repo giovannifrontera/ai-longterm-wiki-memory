@@ -42,9 +42,10 @@ This eliminates the entire class of "index out of sync" bugs.
 
 | Layer | Description | Nature |
 |-------|-------------|--------|
-| **Vector Memory** (LanceDB) | Automatic semantic retrieval | Implicit, rebuildable |
-| **Level 1** (wiki/) | Agent identity and consciousness: values, style, behavioral patterns | Explicit, permanent |
-| **Level 2** (wiki-works/) | Domain knowledge: research, concepts, competencies by topic | Explicit, evolving |
+| **Vector Memory** (LanceDB) | Automatic semantic retrieval — all layers indexed together | Implicit, rebuildable |
+| **wiki-works/\<topic\>/** | Deep domain knowledge: concepts, research, entities per topic | Explicit, permanent |
+| **wiki/** | Distilled cross-domain knowledge: promoted autonomously when relevant across topics | Explicit, permanent |
+| **wiki/identity/** | Agent identity: values, style, learned behavioral patterns (self-reflect only) | Explicit, permanent |
 
 ---
 
@@ -460,7 +461,7 @@ Defines for each wiki:
 - **Archived**: `wiki-works/.archive/project-name/` — LanceDB entries deleted
 - **Archived**: `wiki-works/.archive/project-name/` — LanceDB entries deleted
 
-**Note (v3):** Promotion from wiki-works/ to wiki/ no longer exists. wiki/ is the agent's identity layer and is updated only via `wiki.py self-reflect`. Knowledge stays in wiki-works/.
+**Note (v3):** Promotion from wiki-works/ to wiki/ is autonomous — the agent promotes when knowledge is cross-domain (relevant in ≥2 topics, retrieved in ≥3 queries). wiki/identity/ is updated only via `wiki.py self-reflect`.
 
 ---
 
