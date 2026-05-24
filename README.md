@@ -6,8 +6,8 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-2.3.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-3.0.0-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-orange)](https://claude.ai/code)
@@ -573,6 +573,15 @@ Every command outputs JSON to stdout:
 ---
 
 ## Changelog
+
+### v3.0.0 — 2026-05-24
+
+**Identity Layer + Semantic Deduplication + Autonomous Self-Reflection**
+
+- **wiki/ resemanticized**: `wiki/` is now the agent's identity/consciousness layer (values, style, learned behavioral patterns). `wiki-works/` is the knowledge layer. Promotion no longer exists.
+- **Semantic deduplication**: `lint --full` detects semantic duplicates via cosine similarity. Similarity ≥ 0.90 → auto-merge candidate. 0.75–0.90 → warning. Configurable via `thresholds.dedup_auto` and `thresholds.dedup_warn`.
+- **Autonomous self-reflection**: `wiki.py behavior-log` logs behavioral corrections. `wiki.py self-reflect` autonomously updates `wiki/identity/` when a pattern exceeds the threshold (`self_reflection.correction_threshold`, default 3). No human approval required.
+- **No cross-layer contamination**: `wiki/` identity pages are excluded from semantic duplicate comparison with `wiki-works/` pages.
 
 ### v2.3.0 — 2026-05-24
 

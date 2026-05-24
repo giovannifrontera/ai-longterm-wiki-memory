@@ -43,8 +43,8 @@ This eliminates the entire class of "index out of sync" bugs.
 | Layer | Description | Nature |
 |-------|-------------|--------|
 | **Vector Memory** (LanceDB) | Automatic semantic retrieval | Implicit, rebuildable |
-| **Level 1** (wiki/) | Stable, curated knowledge | Explicit, permanent |
-| **Level 2** (wiki-works/) | Active research, projects | Explicit, temporary |
+| **Level 1** (wiki/) | Agent identity and consciousness: values, style, behavioral patterns | Explicit, permanent |
+| **Level 2** (wiki-works/) | Domain knowledge: research, concepts, competencies by topic | Explicit, evolving |
 
 ---
 
@@ -458,11 +458,9 @@ Defines for each wiki:
 - **Active**: receives ingests and queries
 - **Dormant**: untouched, available read-only
 - **Archived**: `wiki-works/.archive/project-name/` — LanceDB entries deleted
-- **Merged**: pages of permanent value migrated to `wiki/` via atomic INGEST
+- **Archived**: `wiki-works/.archive/project-name/` — LanceDB entries deleted
 
-**Criteria for merging into wiki/**: a page in wiki-works that has been cited in ≥ 3
-distinct queries, or that the user explicitly promotes, or that LINT identifies as a bridge
-between multiple projects.
+**Note (v3):** Promotion from wiki-works/ to wiki/ no longer exists. wiki/ is the agent's identity layer and is updated only via `wiki.py self-reflect`. Knowledge stays in wiki-works/.
 
 ---
 
