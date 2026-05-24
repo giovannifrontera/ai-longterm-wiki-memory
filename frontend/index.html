@@ -221,7 +221,13 @@ body::before {
   paint-order: stroke;
   stroke: var(--bg);
   stroke-width: 3px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
+
+.node:hover text,
+.node.hl text,
+.node.qhit text { opacity: 1; }
 
 .node.dimmed { opacity: 0.08; transition: opacity 0.2s; }
 
@@ -232,11 +238,15 @@ body::before {
 }
 
 @keyframes qpulse {
-  0%   { filter: drop-shadow(0 0 4px #f5a623) drop-shadow(0 0 12px #f5a623); }
-  40%  { filter: drop-shadow(0 0 10px #ff4757) drop-shadow(0 0 22px #ff4757); }
+  0%   { filter: drop-shadow(0 0 8px #f5a623)  drop-shadow(0 0 22px #f5a623bb) drop-shadow(0 0 48px #f5a62366); }
+  13%  { filter: drop-shadow(0 0 16px #ff8c42) drop-shadow(0 0 40px #ff4757dd) drop-shadow(0 0 80px #ff475755); }
+  26%  { filter: drop-shadow(0 0 8px #f5a623)  drop-shadow(0 0 22px #f5a623bb) drop-shadow(0 0 48px #f5a62366); }
+  40%  { filter: drop-shadow(0 0 16px #ff8c42) drop-shadow(0 0 40px #ff4757dd) drop-shadow(0 0 80px #ff475755); }
+  58%  { filter: drop-shadow(0 0 8px #f5a623)  drop-shadow(0 0 18px #f5a62399) drop-shadow(0 0 36px #f5a62344); }
+  78%  { filter: drop-shadow(0 0 4px #f5a623)  drop-shadow(0 0 10px #f5a62377); }
   100% { filter: none; }
 }
-.qhit { animation: qpulse 4s ease-out forwards; }
+.qhit { animation: qpulse 8s ease-out forwards; }
 
 /* ── TOOLTIP ── */
 #tooltip {
@@ -854,7 +864,7 @@ function handleQueryHit(paths) {
       this.classList.remove('qhit');
       void this.offsetWidth;
       this.classList.add('qhit');
-      setTimeout(() => this.classList.remove('qhit'), 4200);
+      setTimeout(() => this.classList.remove('qhit'), 8200);
     });
   });
   if (simulation) simulation.alpha(0.3).restart();
