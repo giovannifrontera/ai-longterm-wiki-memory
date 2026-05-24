@@ -13,7 +13,7 @@ Your AI agent forgets everything between sessions. This gives it a structured, s
 [![Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
-[Quick Start](#quick-start) · [Features](#features) · [PDF Ingestion](#multi-source-pdf-ingestion-v20) · [Web Interface](#web-interface-v21) · [Dashboard](#dashboard-observability-v22) · [Integration](#integration) · [CLI Reference](#cli-reference)
+[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [PDF Ingestion](#multi-source-pdf-ingestion-v20) · [Web Interface](#web-interface-v21) · [Dashboard](#dashboard-observability-v22) · [Integration](#integration) · [CLI Reference](#cli-reference)
 
 ---
 
@@ -37,14 +37,15 @@ AI agents forget everything between sessions. Existing memory systems are flat �
 
 ## What it does
 
-AI Longterm Wiki Memory gives your agent a two-level wiki it maintains autonomously:
+AI Longterm Wiki Memory gives your agent a **three-layer brain** it maintains autonomously — all layers indexed together in a single LanceDB vector space:
 
-| Level | Directory | Purpose |
-|-------|-----------|---------|
-| Permanent | `wiki/` | Curated knowledge: entities, concepts, synthesis pages |
-| Active research | `wiki-works/<project>/` | Per-domain raw sources + structured pages |
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per domain: concepts, research, entities | INGEST workflow |
+| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously when useful across ≥2 topics | Agent (autonomous promotion) |
+| **Identity** | `wiki/identity/` | Behavioral patterns, values, style — learned from corrections | Only `wiki.py self-reflect` |
 
-The agent ingests web pages, papers, and PDFs; retrieves by semantic meaning (not keywords); detects stale or contradictory knowledge; and synthesizes new pages automatically when multiple sources support a non-obvious inference — all without corrupting the knowledge base even if a process crashes mid-operation.
+The agent ingests web pages, papers, and PDFs; retrieves by semantic meaning (not keywords); promotes knowledge autonomously between layers; detects stale or contradictory knowledge; and synthesizes new pages automatically when multiple sources support a non-obvious inference — all without corrupting the knowledge base even if a process crashes mid-operation.
 
 ```
 User: "study this paper on RAG architectures"
@@ -54,13 +55,21 @@ Agent: [INTENT: INGEST | WORKSPACE: research | CONFIDENCE: high]
        → wiki.py ingest: atomic staging → production commit
        → markdown + embeddings written in the same operation
        → "2 pages written. Mini-lint: ok."
+       → checks promotion criteria: retrieved in ≥3 queries, cross-domain?
+       → promotes to wiki/concepts/rag.md autonomously if criteria met
 
 User: "what do you know about retrieval-augmented generation?"
 
 Agent: [INTENT: QUERY | WORKSPACE: research | CONFIDENCE: high]
-       → semantic vector search, no keyword scan
+       → <wiki-context> already injected (pre-prompt hook)
        → reads relevant pages, synthesizes with citations
        → synthesis meets threshold → auto-saved as new wiki page
+
+User: "stop adding a summary at the end of every response"
+
+Agent: [INTENT: BEHAVIOR_FEEDBACK | CONFIDENCE: high]
+       → wiki.py behavior-log --event "no trailing summary"
+       → at session end: wiki.py self-reflect → wiki/identity/ updated
 ```
 
 ---
@@ -137,6 +146,15 @@ When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds
 
 ### Observability dashboard
 A `[Stats]` tab in the web frontend gives a live view of the wiki health: pages embedded vs unembedded, stale pages (configurable threshold), top-10 most queried pages, lint status with last-run timestamp and warning count, and the auto-lint schedule. Lint can also be triggered manually from the browser.
+
+### Autonomous promotion
+When a page from `wiki-works/<topic>/` is retrieved in ≥3 distinct queries and proves relevant across ≥2 topics, the agent promotes it to `wiki/` without user confirmation — cross-domain knowledge compounds automatically.
+
+### Semantic deduplication
+`wiki.py lint --full` detects semantically similar pages via cosine similarity. Similarity ≥ 0.90 → auto-merge candidate; 0.75–0.90 → user warning. Configurable via `thresholds.dedup_auto` and `thresholds.dedup_warn`.
+
+### Behavioral self-reflection (Identity layer)
+When the user corrects the agent's behavior ("always", "never", "stop doing X"), the correction is logged with `wiki.py behavior-log`. At end of session, `wiki.py self-reflect` reads the log and autonomously updates `wiki/identity/` when a pattern reaches the threshold (default: 3 occurrences). The agent learns without human approval of each update.
 
 ---
 
@@ -303,11 +321,11 @@ The scheduler starts with the server. If omitted, auto-lint is disabled and the 
 ```
 workspace/
 ├── skills/
-│   └── wiki-core.md          ← permanent skill: intent classification, workflows
+│   └── wiki-core.md          ← permanent skill: intent classification, workflows (v3)
 ├── wiki-session.md           ← live session state (generated by wiki.py)
 ├── wiki.config.json          ← configuration
 ├── scripts/
-│   ├── wiki.py               ← unified CLI entry point (9 commands)
+│   ├── wiki.py               ← unified CLI entry point (11 commands)
 │   ├── wiki_context.py       ← pre-prompt context injector (hook)
 │   ├── wiki_pdf_watcher.py   ← PDF inbox scanner (hash detection + pdfplumber)
 │   ├── wiki_embed.py         ← boundary-aware chunking + bge-m3 embeddings
@@ -320,18 +338,20 @@ workspace/
 ├── pdf-inbox/                ← all PDF sources converge here
 │   └── .registry.json        ← hash + status per PDF (atomic write)
 ├── .wiki-lint-status.json    ← last lint result (written atomically by cmd_lint)
-├── wiki/                     ← permanent knowledge base
-│   ├── entities/             ← people, tools, organizations
-│   ├── concepts/             ← theories, strategies, definitions
-│   └── synthesis/            ← cross-source inferences
-├── wiki-works/               ← active research (per project)
-│   └── <project>/
+├── .wiki-behavior-log.jsonl  ← behavioral corrections log (appended by behavior-log)
+├── wiki/                     ← distilled cross-domain knowledge + identity layer
+│   ├── entities/             ← people, tools, organizations (cross-domain)
+│   ├── concepts/             ← theories, strategies, definitions (cross-domain)
+│   ├── synthesis/            ← cross-source inferences (cross-domain)
+│   └── identity/             ← behavioral patterns (written only by self-reflect)
+├── wiki-works/               ← deep domain knowledge (permanent, per topic)
+│   └── <topic>/
 │       ├── raw/              ← raw fetched sources and extracted PDFs
 │       ├── entities/
 │       ├── concepts/
 │       └── synthesis/
 └── memory/
-    └── lancedb/              ← vector database (git-ignored, rebuildable)
+    └── lancedb/              ← vector database — all three layers indexed together
 ```
 
 **Core invariant:** The agent never writes directly to the wiki. Everything goes through `wiki.py`. The skill guides *when* and *why*; the scripts handle *how*.
@@ -401,10 +421,11 @@ Add to OpenClaw config:
 
 | User says | Agent does |
 |-----------|-----------|
-| URL / "study this" / file attachment | INGEST: fetch → structure → atomic write + embed |
+| URL / "study this" / file attachment | INGEST: fetch → structure → atomic write + embed → evaluate promotion |
 | PDF via Telegram / CLI / URL | INGEST-PDF: inbox → extract → deposit in raw/ → structure |
-| Direct question / "explain" / "what do you know about" | QUERY: vector search → read pages → synthesize |
+| Direct question / "explain" / "what do you know about" | QUERY: `<wiki-context>` already injected → read pages → synthesize → auto-save if threshold met |
 | "check the wiki" / "maintenance" / "broken links" | LINT: broken links, orphans, renames, semantic duplicates |
+| "always", "never", "stop doing X" (behavioral correction) | BEHAVIOR_FEEDBACK: log correction → self-reflect at session end → `wiki/identity/` updated |
 | Ambiguous | Asks one clarifying question, never guesses |
 
 The agent always emits a classification line before acting — you can correct it before execution:
@@ -484,7 +505,7 @@ Minimal config:
 ```bash
 py scripts/wiki.py rebuild --workspace my-workspace/
 pytest tests/ -v
-# Expected: 92 passed
+# Expected: 106 passed
 ```
 
 ### Dependencies
@@ -498,7 +519,7 @@ pytest tests/ -v
 | `pdfplumber ≥ 0.11.0` | PDF text extraction — used by `wiki_pdf_watcher.py` |
 | `pyyaml ≥ 6.0` | Parses `wiki.config.json` and YAML frontmatter |
 | `requests ≥ 2.31.0` | HTTP fetching during source ingestion |
-| `pytest ≥ 8.0.0` | Test runner — 82 tests covering all workflows |
+| `pytest ≥ 8.0.0` | Test runner — 106 tests covering all workflows |
 | `fastapi ≥ 0.111.0` | Web server for the browser frontend |
 | `uvicorn[standard] ≥ 0.29.0` | ASGI server — runs FastAPI with WebSocket support |
 | `watchfiles ≥ 0.21.0` | Async file watcher — triggers live graph updates |
@@ -522,6 +543,8 @@ wiki.py <command> [arguments]
   scan-inbox     --workspace <path>
   ingest-pdf     --workspace <path> --file <local-path|url>
   serve          --workspace <path> [--host 127.0.0.1] [--port 7331] [--no-auth]
+  behavior-log   --workspace <path> --event "<canonical correction phrase>"
+  self-reflect   --workspace <path>
 
 wiki_context.py  (hook — outputs <wiki-context> block to stdout)
   --workspace <path>  --q <string>  [--k 3]  [--max-chars 600]
@@ -561,12 +584,13 @@ Every command outputs JSON to stdout:
 | **Crash safety** | Not addressed | Atomic `.tmp → staging → promotion` pipeline |
 | **Multi-project** | Single wiki | Routed workspaces via `wiki.config.json` |
 | **PDF ingestion** | Not addressed | Multi-source: Telegram, URL, CLI, folder drop |
-| **Knowledge compounding** | Query answers stay in chat | Auto-synthesis: saved as new wiki page + embeddings |
+| **Knowledge compounding** | Query answers stay in chat | Auto-synthesis + autonomous promotion across three layers |
 | **Lint** | Basic health check concept | Self-healing: orphan vectors, semantic duplicates, renames |
 | **Context injection** | Not addressed | `wiki_context.py` pre-injects relevant pages before every prompt |
+| **Behavioral learning** | Not addressed | `behavior-log` + `self-reflect` → `wiki/identity/` updated autonomously |
 | **Visualization** | Not addressed | Interactive D3 graph with live WebSocket updates |
 | **Languages** | English-focused | Multilingual — bge-m3 supports 100+ languages |
-| **Testing** | None | 82 automated tests |
+| **Testing** | None | 106 automated tests |
 
 ---
 
