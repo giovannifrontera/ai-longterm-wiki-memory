@@ -412,3 +412,15 @@ def cmd_serve(args, cfg):
     no_auth = getattr(args, "no_auth", False)
     wiki_server.configure(args.workspace, cfg, no_auth)
     uvicorn.run("wiki_server:app", host=args.host, port=args.port, reload=False)
+
+
+def cmd_behavior_log(args, cfg):
+    from wiki_selfreflect import log_behavior
+    log_behavior(args.workspace, args.event)
+    ok({"op": "behavior-log", "event": args.event})
+
+
+def cmd_self_reflect(args, cfg):
+    from wiki_selfreflect import run_self_reflect
+    result = run_self_reflect(args.workspace, cfg)
+    ok(result)

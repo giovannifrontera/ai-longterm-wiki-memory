@@ -130,6 +130,13 @@ def main():
     p_serve.add_argument("--port", type=int, default=7331)
     p_serve.add_argument("--no-auth", action="store_true")
 
+    p_behavior_log = sub.add_parser("behavior-log")
+    p_behavior_log.add_argument("--workspace", required=True)
+    p_behavior_log.add_argument("--event", required=True)
+
+    p_self_reflect = sub.add_parser("self-reflect")
+    p_self_reflect.add_argument("--workspace", required=True)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -148,7 +155,8 @@ def main():
 def dispatch(args, cfg):
     from wiki_workflows import (cmd_ingest, cmd_query, cmd_lint, cmd_index,
                                 cmd_rebuild, cmd_session_update,
-                                cmd_scan_inbox, cmd_ingest_pdf, cmd_serve)
+                                cmd_scan_inbox, cmd_ingest_pdf, cmd_serve,
+                                cmd_behavior_log, cmd_self_reflect)
     commands = {
         "ingest": cmd_ingest,
         "query": cmd_query,
@@ -159,6 +167,8 @@ def dispatch(args, cfg):
         "scan-inbox": cmd_scan_inbox,
         "ingest-pdf": cmd_ingest_pdf,
         "serve": cmd_serve,
+        "behavior-log": cmd_behavior_log,
+        "self-reflect": cmd_self_reflect,
     }
     commands[args.command](args, cfg)
 
