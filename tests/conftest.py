@@ -29,7 +29,13 @@ def tmp_workspace(tmp_path):
             "chunk_size_tokens": 512,
             "chunk_overlap_tokens": 64,
             "page_chunk_threshold_tokens": 1500,
-            "quality_filter_min_score": 6
+            "quality_filter_min_score": 6,
+            "dedup_auto": 0.90,
+            "dedup_warn": 0.75,
+        },
+        "self_reflection": {
+            "enabled": True,
+            "correction_threshold": 3,
         },
         "lancedb": {
             "path": "memory/lancedb",

@@ -11,7 +11,9 @@ from pathlib import Path
 
 from wiki import ok, error, acquire_lock, release_lock
 from wiki_embed import embed_file, _load_model
-from wiki_lancedb import get_db, upsert, promote_staging, rollback_staging, ensure_table, detect_renames, query_similar
+from wiki_lancedb import (get_db, upsert, promote_staging, rollback_staging,
+                           ensure_table, detect_renames, query_similar,
+                           find_semantic_duplicates)
 from wiki_index import rebuild_index, is_stale, EXCLUDED_NAMES
 
 
@@ -250,8 +252,14 @@ def cmd_lint(args, cfg):
             if len(paths) > 1:
                 report.append({"type": "duplicate_filename", "filename": filename, "paths": sorted(paths)})
 
+        # Semantic duplicate detection
+        auto_t = cfg.get("thresholds", {}).get("dedup_auto", 0.90)
+        warn_t = cfg.get("thresholds", {}).get("dedup_warn", 0.75)
+        for dup in find_semantic_duplicates(db, auto_threshold=auto_t, warn_threshold=warn_t):
+            report.append({"type": "semantic_duplicate", **dup})
+
     errors = sum(1 for r in report if r["type"] in ("broken_link", "orphan_entry"))
-    warnings = sum(1 for r in report if r["type"] in ("rename_detected", "duplicate_filename"))
+    warnings = sum(1 for r in report if r["type"] in ("rename_detected", "duplicate_filename", "semantic_duplicate"))
     orphans = sum(1 for r in report if r["type"] == "orphan_entry")
     broken = sum(1 for r in report if r["type"] == "broken_link")
     detail_parts = []
@@ -265,6 +273,12 @@ def cmd_lint(args, cfg):
         detail_parts.append(f"{renames_count} renames detected")
     if duplicates_count:
         detail_parts.append(f"{duplicates_count} duplicate filenames")
+    semantic_auto = sum(1 for r in report if r["type"] == "semantic_duplicate" and r.get("action") == "auto_merge")
+    semantic_warn = sum(1 for r in report if r["type"] == "semantic_duplicate" and r.get("action") == "warn")
+    if semantic_auto:
+        detail_parts.append(f"{semantic_auto} auto-merge candidates")
+    if semantic_warn:
+        detail_parts.append(f"{semantic_warn} semantic overlaps")
     detail_str = ", ".join(detail_parts) if detail_parts else "no issues"
 
     status = {
