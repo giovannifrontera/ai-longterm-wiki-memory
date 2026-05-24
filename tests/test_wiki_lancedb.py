@@ -82,3 +82,75 @@ def test_detect_renames(tmp_workspace):
     assert renames[0]["old_path"] == old_path
     # new_path è relativo al workspace, non assoluto
     assert renames[0]["new_path"] == "wiki/concepts/new-name.md"
+
+
+def test_find_semantic_duplicates_empty(tmp_path):
+    from wiki_lancedb import get_db, find_semantic_duplicates
+    db = get_db(str(tmp_path / "lancedb"))
+    result = find_semantic_duplicates(db)
+    assert result == []
+
+
+def test_find_semantic_duplicates_detects_near_identical(tmp_path):
+    import numpy as np
+    from wiki_lancedb import get_db, upsert, find_semantic_duplicates
+
+    db = get_db(str(tmp_path / "lancedb"))
+
+    base = np.random.rand(1024).astype(np.float32)
+    base /= np.linalg.norm(base)
+    near = base + np.random.rand(1024).astype(np.float32) * 0.01
+    near /= np.linalg.norm(near)
+
+    chunks_a = [{"chunk_id": 0, "chunk_text": "a", "content_hash": "ha", "page_hash": "pha", "vector": base.tolist()}]
+    chunks_b = [{"chunk_id": 0, "chunk_text": "b", "content_hash": "hb", "page_hash": "phb", "vector": near.tolist()}]
+    upsert(db, "wiki-works/test/page_a.md", chunks_a)
+    upsert(db, "wiki-works/test/page_b.md", chunks_b)
+
+    result = find_semantic_duplicates(db, auto_threshold=0.90, warn_threshold=0.75)
+    assert len(result) == 1
+    assert result[0]["action"] == "auto_merge"
+    assert result[0]["page_a"] in ("wiki-works/test/page_a.md", "wiki-works/test/page_b.md")
+
+
+def test_find_semantic_duplicates_warn_range(tmp_path):
+    import numpy as np
+    from wiki_lancedb import get_db, upsert, find_semantic_duplicates
+
+    db = get_db(str(tmp_path / "lancedb"))
+
+    base = np.random.rand(1024).astype(np.float32)
+    base /= np.linalg.norm(base)
+    perp = np.random.rand(1024).astype(np.float32)
+    perp -= perp.dot(base) * base
+    perp /= np.linalg.norm(perp)
+    similar = 0.80 * base + 0.60 * perp
+    similar /= np.linalg.norm(similar)
+
+    chunks_a = [{"chunk_id": 0, "chunk_text": "a", "content_hash": "ha", "page_hash": "pha", "vector": base.tolist()}]
+    chunks_b = [{"chunk_id": 0, "chunk_text": "b", "content_hash": "hb", "page_hash": "phb", "vector": similar.tolist()}]
+    upsert(db, "wiki-works/test/page_a.md", chunks_a)
+    upsert(db, "wiki-works/test/page_b.md", chunks_b)
+
+    result = find_semantic_duplicates(db, auto_threshold=0.90, warn_threshold=0.75)
+    assert len(result) == 1
+    assert result[0]["action"] == "warn"
+
+
+def test_find_semantic_duplicates_skips_wiki_identity(tmp_path):
+    import numpy as np
+    from wiki_lancedb import get_db, upsert, find_semantic_duplicates
+
+    db = get_db(str(tmp_path / "lancedb"))
+    base = np.random.rand(1024).astype(np.float32)
+    base /= np.linalg.norm(base)
+    near = base + np.random.rand(1024).astype(np.float32) * 0.001
+    near /= np.linalg.norm(near)
+
+    chunks_id = [{"chunk_id": 0, "chunk_text": "identity", "content_hash": "hi", "page_hash": "phi", "vector": base.tolist()}]
+    chunks_k = [{"chunk_id": 0, "chunk_text": "knowledge", "content_hash": "hk", "page_hash": "phk", "vector": near.tolist()}]
+    upsert(db, "wiki/identity/style.md", chunks_id)
+    upsert(db, "wiki-works/test/concept.md", chunks_k)
+
+    result = find_semantic_duplicates(db, auto_threshold=0.90, warn_threshold=0.75)
+    assert result == [], "wiki/ identity pages must not be compared with wiki-works/ pages"
