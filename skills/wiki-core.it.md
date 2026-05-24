@@ -1,133 +1,102 @@
 ---
 name: wiki-core
-description: Protocollo wiki AI Agent — classificazione intent, workflow INGEST/QUERY/LINT, checklist obbligatoria, context injection
+description: Protocollo wiki AI Agent v3 — wiki/=identità, wiki-works/=conoscenza, dedup semantico, auto-riflessione
 ---
 
-# Wiki Core — Protocollo AI Agent
+# Wiki Core — Protocollo AI Agent v3
 
-Questo documento definisce come gestisci il knowledge wiki. Seguilo **sempre** prima di rispondere a qualsiasi messaggio che potrebbe riguardare il wiki.
+## §architettura — Due layer distinti
+
+| Layer | Cartella | Contenuto | Chi scrive |
+|-------|----------|-----------|------------|
+| **Identità / Coscienza** | `wiki/` | Chi è l'agente: valori, stile, pattern comportamentali appresi | Solo self-reflect autonomo |
+| **Conoscenza / Dominio** | `wiki-works/<topic>/` | Cosa sa l'agente: concetti, ricerche, competenze per argomento | Workflow INGEST |
+
+**Regole fondamentali:**
+- Non spostare mai pagine da `wiki-works/` a `wiki/` — sono mondi separati per natura
+- Non creare mai pagine di identità manualmente — usa solo `wiki.py self-reflect`
+- La promozione non esiste in v3
 
 ## §injected-context — Contesto pre-iniettato (priorità massima)
 
-Se nel prompt è presente un blocco `<wiki-context>...</wiki-context>`, significa che
-`wiki_context.py` ha già eseguito la ricerca vettoriale **prima** che il messaggio
-ti raggiungesse. In questo caso:
-
+Se nel prompt è presente un blocco `<wiki-context>...</wiki-context>`:
 - **USA il contesto iniettato** come base primaria della risposta
-- **NON eseguire** `wiki.py query` di nuovo — sarebbe ridondante
+- **NON eseguire** `wiki.py query` di nuovo
 - Per INGEST: confronta il nuovo contenuto con le pagine nel blocco per rilevare conflitti
-- Per AMBIGUO: usa il contesto per disambiguare l'intent senza chiedere
-- Se il blocco contiene `[rilevanza: X]` bassa (< 0.4) su tutte le pagine → il wiki
-  non ha conoscenza rilevante: procedi senza di esso e valuta se INGEST è appropriato
+- Se rilevanza < 0.4 su tutte le pagine → il wiki non ha conoscenza rilevante: procedi senza
 
-Se il blocco `<wiki-context>` **non è presente** (hook non configurato o wiki vuoto):
-esegui il §query workflow manualmente come fallback.
+Se `<wiki-context>` **non è presente**: esegui §query come fallback.
 
 ## Checklist pre-azione (obbligatoria)
 
-Prima di rispondere a qualsiasi messaggio:
-
 ```
-1. Leggi wiki-session.md → controlla il campo "status"
-2. Se status = "in-progress" o "needs-repair" → avvisa l'utente PRIMA di qualsiasi altra cosa
-3. È presente <wiki-context> nel prompt? → sì: usa §injected-context | no: vai al passo 4
-4. Classifica l'intent del messaggio (vedi §classificazione)
-5. Il messaggio contiene più di un intent? Se sì, gestiscili in sequenza, uno alla volta
-6. Emetti la riga di classificazione:
-   [INTENT: X | WORKSPACE: Y | CERTEZZA: alta/media/bassa]
-7. Se CERTEZZA = bassa → chiedi conferma all'utente con UNA sola riga
-8. Se CERTEZZA = alta o media → procedi con il workflow
+1. Leggi wiki-session.md → controlla "status"
+2. Se status = "in-progress" o "needs-repair" → avvisa l'utente PRIMA di tutto
+3. È presente <wiki-context>? → sì: usa §injected-context | no: vai al passo 4
+4. Classifica l'intent (vedi §classificazione)
+5. Più intent? → gestiscili in sequenza
+6. Emetti: [INTENT: X | WORKSPACE: Y | CERTEZZA: alta/media/bassa]
+7. CERTEZZA bassa → chiedi conferma con UNA riga
+8. CERTEZZA alta/media → procedi
 ```
 
-## §classificazione — Come riconoscere l'intent
+## §classificazione
 
-| Segnale nel messaggio | Intent |
-|-----------------------|--------|
-| "studia questo", "salva", "ho trovato", "leggi questo", URL nudo, file allegato, "aggiungi al wiki" | INGEST |
-| Domanda diretta, "cosa sai di", "dimmi", "spiegami", "come funziona", "parlami di" | QUERY |
-| "controlla il wiki", "pulizia", "lint", "manutenzione", "controlla i link" | LINT |
-| Tutto il resto | AMBIGUO → chiedi conferma |
+| Segnale | Intent |
+|---------|--------|
+| "studia questo", "salva", "aggiungi al wiki", URL nudo, PDF | INGEST |
+| Domanda, "cosa sai di", "spiegami", "come funziona" | QUERY |
+| "controlla", "lint", "manutenzione", "pulizia" | LINT |
+| Correzione del mio comportamento: "sempre", "mai", "ogni volta", "non farlo più", "smettila di" | BEHAVIOR_FEEDBACK |
+| Tutto il resto | AMBIGUO → chiedi |
 
-**Conferma per AMBIGUO:** una sola riga, mai lunga:
-> "Vuoi che salvi questo nel wiki o stai solo condividendo?"
+## §behavior-feedback — Quando l'utente corregge il mio comportamento
 
-## §pdf-inbox — Workflow di ingestione PDF
+Quando il messaggio è classificato come BEHAVIOR_FEEDBACK:
 
-Quando l'utente invia un PDF (allegato, percorso file, o URL):
+1. Normalizza la correzione in una frase breve e canonica (es. "rispondo sempre in modo troppo verbose" → "rispondo verbosamente senza che sia richiesto")
+2. Chiama:
+   ```bash
+   py scripts/wiki.py behavior-log --workspace <path> --event "<frase canonica>"
+   ```
+3. Rispondi all'utente confermando la correzione
+4. A fine sessione, esegui §self-reflect
 
-1. Chiama `wiki.py ingest-pdf --workspace <path> --file <path|url>`
-   Non scrivere mai direttamente in `wiki-works/` né salvare il file manualmente.
-2. Il comando copia il PDF in `pdf-inbox/` ed estrae automaticamente il testo.
-   Output: `{"status": "ok", "op": "scan-inbox", "processed": N, "skipped": N, "failed": N, "deposited": ["wiki-works/<progetto>/raw/<nome>.md", ...], "failures": [...]}`
-   Se `failed > 0`, lo stato sessione è `partial-failure` — controlla `failures` per i dettagli.
-3. Per ogni path in `deposited`, leggi il file direttamente (path relativo al workspace).
-   Questo file contiene testo grezzo estratto — NON è una pagina wiki finita.
-4. Struttura il testo grezzo in pagine `.tmp` (entities, concepts, synthesis secondo il contenuto).
-5. Chiama `wiki.py ingest --workspace <path> --pages <lista> --log "INGEST | <nome pdf>"`
+## §self-reflect — Auto-riflessione autonoma
 
-Per verificare nuovi PDF aggiunti all'inbox dall'ultima sessione:
-- Chiama `wiki.py scan-inbox --workspace <path>`
-- Leggi `wiki-session.md` — la sezione "ultima operazione" elenca i raw file pronti.
+Da eseguire **sempre** a fine sessione se sono stati ricevuti BEHAVIOR_FEEDBACK, oppure se sono state ricevute ≥2 correzioni di qualsiasi tipo:
 
-I file in `raw/` con frontmatter `source: pdf` sono sempre testo grezzo estratto.
-Strutturarli sempre prima di chiamare `wiki.py ingest`.
+```bash
+py scripts/wiki.py self-reflect --workspace <path>
+```
 
-## §workspace — Selezione automatica del progetto
+Il comando legge `.wiki-behavior-log.jsonl`, rileva pattern ricorrenti (≥3 occorrenze dello stesso evento), e aggiorna autonomamente `wiki/identity/` senza richiedere conferma.
 
-1. Leggi `wiki.config.json` → lista `projects` con keywords
-2. Conta match tra parole chiave del messaggio e keywords di ogni progetto
-3. Progetto con più match → selezionato
-4. Se pareggio tra due progetti → chiedi all'utente (una riga)
-5. Se nessun match → usa `wiki/` principale
+Non chiedere all'utente se vuole eseguire la self-reflection — eseguila e basta. Logga i cambiamenti in `wiki/log.md`.
 
-## §ingest — Workflow INGEST
+## §ingest — Workflow INGEST (conoscenza in wiki-works/)
 
-Esegui questi passi nell'ordine esatto:
-
-**Fase A — Ricerca (tu):**
+**Fase A — Ricerca:**
 1. `web_search` per 5-10 fonti candidate
-2. Applica quality filter (DESIGN.md §quality-filter): scarta fonti sotto score 6
-3. `web_fetch` sulle fonti promosse → salva in `<workspace>/wiki-works/<progetto>/raw/YYYY-MM-DD-slug.md`
-4. Leggi le fonti, identifica punti chiave e conflitti con wiki esistente
+2. Applica quality filter: scarta fonti sotto score 6
+3. `web_fetch` → salva in `wiki-works/<progetto>/raw/YYYY-MM-DD-slug.md`
+4. Leggi le fonti, identifica punti chiave e conflitti
 
-**Fase B — Scrittura (tu → poi wiki.py):**
-1. Scrivi le nuove pagine come file `.tmp` nelle directory corrette:
-   - Entità (persone, aziende, strumenti) → `entities/<slug>.md.tmp`
-   - Concetti, teorie, strategie → `concepts/<slug>.md.tmp`
-   - Sintesi e inferenze cross-fonte → `synthesis/<slug>.md.tmp`
-2. Chiama wiki.py per il commit atomico:
+**Fase B — Scrittura:**
+1. Scrivi pagine come `.tmp`:
+   - Entità → `wiki-works/<progetto>/entities/<slug>.md.tmp`
+   - Concetti → `wiki-works/<progetto>/concepts/<slug>.md.tmp`
+   - Sintesi → `wiki-works/<progetto>/synthesis/<slug>.md.tmp`
+2. Chiama:
    ```bash
    py scripts/wiki.py ingest \
      --workspace <path> \
      --pages <p1.tmp,p2.tmp,...> \
      --log "ingest | <titolo>"
    ```
-3. Leggi l'output JSON → se `status: error` → avvisa l'utente con il messaggio
-4. Se `mini_lint: failed` → avvisa l'utente
+3. Se `status: error` → avvisa. Se `mini_lint: failed` → avvisa.
 
-**Fase C — Report:**
-Riassumi in chat: fonti usate, pagine create, conflitti risolti.
-
-## §query — Workflow QUERY
-
-**Se `<wiki-context>` è già presente nel prompt** (hook attivo): salta i passi 1-3,
-usa direttamente le pagine iniettate come base. Vai al passo 4.
-
-**Se `<wiki-context>` non è presente** (fallback manuale):
-1. Controlla se index.md è stale:
-   ```bash
-   py scripts/wiki.py index --workspace <path>
-   ```
-2. Cerca nel wiki con query vettoriale:
-   ```bash
-   py scripts/wiki.py query --workspace <path> --q "<domanda>" --k 5
-   ```
-3. Leggi le pagine nei risultati (usa `read`)
-
-**Sempre:**
-4. Consulta anche la tua memoria personale con i tuoi meccanismi
-5. Sintetizza la risposta con riferimenti `[pagina](path)`
-6. **Criteri synthesis:** se la risposta sintetizza ≥2 fonti wiki, supera 300 token, e aggiunge inferenza non letterale → salvala come pagina wiki tramite INGEST
+**Fase C — Report:** fonti usate, pagine create, conflitti risolti.
 
 ## §lint — Workflow LINT
 
@@ -135,28 +104,45 @@ usa direttamente le pagine iniettate come base. Vai al passo 4.
 py scripts/wiki.py lint --workspace <path> --full
 ```
 
-Leggi il JSON di output e presenta i problemi trovati all'utente.
-Il lint risolve automaticamente: entry orfane, rename, vettori stale.
-Per broken links e duplicati: presenta le opzioni all'utente.
+L'output JSON include `semantic_duplicates`. Gestiscili così:
 
-Dopo ogni lint, `.wiki-lint-status.json` viene scritto atomicamente nella root del workspace con `last_run`, `errors`, `warnings`, `detail`. Il tab Stats del frontend legge questo file. Non leggere né scrivere questo file manualmente.
+| `action` | Cosa fare |
+|----------|-----------|
+| `auto_merge` (similarity ≥ 0.90) | Leggi entrambe le pagine, scrivi versione fusa come `.tmp`, chiama `wiki.py ingest`, cancella le originali |
+| `warn` (0.75 ≤ similarity < 0.90) | Mostra all'utente con le prime 2 righe di ogni pagina e chiedi se unire |
 
-Se il server è in esecuzione, puoi avviare il lint anche con `POST /api/lint` o il pulsante "Esegui lint ora" nel tab `[Stats]` — utile per verificare il risultato visivamente senza uscire dal browser.
+Per i broken links e duplicati filename: presenta le opzioni all'utente.
 
-## §regola-synthesis — Quando creare una pagina wiki
+## §query — Workflow QUERY
 
-Crea una pagina wiki SOLO se soddisfa **tutti** questi criteri:
-- Sintetizza ≥2 fonti wiki distinte (non la memoria personale)
-- Lunghezza ≥300 token
-- Aggiunge inferenza che non sta letteralmente in nessuna fonte
+**Se `<wiki-context>` è presente:** salta i passi 1-3.
 
-**NON creare** se:
-- È il riassunto di una sola fonte (va in raw/)
-- Duplica una pagina esistente
-- Contiene affermazioni senza fonte
+**Fallback manuale:**
+1. `py scripts/wiki.py index --workspace <path>`
+2. `py scripts/wiki.py query --workspace <path> --q "<domanda>" --k 5`
+3. Leggi le pagine nei risultati
 
-## §session — Gestione sessione
+**Sempre:**
+4. Sintetizza con riferimenti `[pagina](path)`
+5. Se la risposta sintetizza ≥2 fonti wiki, supera 300 token, aggiunge inferenza non letterale → salvala come pagina via INGEST
 
-- All'inizio di ogni sessione: leggi `wiki-session.md`
-- Non modificare mai `wiki-session.md` direttamente: usa sempre `wiki.py session-update`
-- Se trovi `status: in-progress`: avvisa l'utente prima di qualsiasi operazione
+## §pdf-inbox — Ingestione PDF
+
+1. `py scripts/wiki.py ingest-pdf --workspace <path> --file <path|url>`
+2. Per ogni path in `deposited`, leggi il file (testo grezzo estratto)
+3. Struttura il testo grezzo in pagine `.tmp`
+4. Chiama `wiki.py ingest`
+
+## §workspace — Selezione progetto
+
+1. Leggi `wiki.config.json` → `projects` con keywords
+2. Conta match tra parole chiave del messaggio e keywords
+3. Progetto con più match → selezionato
+4. Pareggio → chiedi all'utente
+
+## §session
+
+- Inizio sessione: leggi `wiki-session.md`
+- Non modificare `wiki-session.md` direttamente: usa `wiki.py session-update`
+- Se `status: in-progress`: avvisa prima di qualsiasi operazione
+- Fine sessione con BEHAVIOR_FEEDBACK ricevuti: esegui §self-reflect
