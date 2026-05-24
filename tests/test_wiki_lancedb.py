@@ -154,3 +154,17 @@ def test_find_semantic_duplicates_skips_wiki_identity(tmp_path):
 
     result = find_semantic_duplicates(db, auto_threshold=0.90, warn_threshold=0.75)
     assert result == [], "wiki/ identity pages must not be compared with wiki-works/ pages"
+
+
+def test_find_semantic_duplicates_single_page(tmp_path):
+    import numpy as np
+    from wiki_lancedb import get_db, upsert, find_semantic_duplicates
+
+    db = get_db(str(tmp_path / "lancedb"))
+    vec = np.random.rand(1024).astype(np.float32)
+    vec /= np.linalg.norm(vec)
+    chunks = [{"chunk_id": 0, "chunk_text": "solo", "content_hash": "h", "page_hash": "ph", "vector": vec.tolist()}]
+    upsert(db, "wiki-works/test/only_page.md", chunks)
+
+    result = find_semantic_duplicates(db)
+    assert result == []

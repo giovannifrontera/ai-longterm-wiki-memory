@@ -122,6 +122,7 @@ def find_semantic_duplicates(
 
     df0 = df[df["chunk_id"] == 0].copy()
     df0 = df0[~df0["path"].str.startswith("wiki/")]
+    df0 = df0.drop_duplicates(subset=["path"])
     if len(df0) < 2:
         return []
 
