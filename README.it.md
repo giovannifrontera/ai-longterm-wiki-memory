@@ -1,6 +1,6 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-3.0.0-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/versione-3.0.1-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-106%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
@@ -507,6 +507,15 @@ Ogni comando produce JSON su stdout:
 ---
 
 ## Changelog
+
+### v3.0.1 — 2026-05-24
+
+**Correzione architettura + fix animazione nodi + mockup UI**
+
+- **Architettura corretta**: la v3.0.0 aveva erroneamente eliminato la promozione e limitato `wiki/` alla sola identità. Design corretto: `wiki-works/<topic>/` = conoscenza di dominio permanente; `wiki/` = conoscenza trasversale distillata (promossa autonomamente); `wiki/identity/` = pattern comportamentali (self-reflect). Tutti i layer indicizzati insieme in LanceDB.
+- **fix: animazione nodi** — `wiki_context.py` (l'hook che gira ad ogni prompt) ora scrive i path delle pagine recuperate in `.wiki-query-log.jsonl`. Il watcher WebSocket del server li rileva e trasmette `query_hit` al frontend, che anima i nodi attivati in oro in tempo reale.
+- **Mockup UI**: illustrazioni SVG del grafo (con animazione query-hit) e della tab Stats aggiunte al README.
+- Tutti i file per umani (README, DESIGN, ROADMAP, AGENTS.md, CLAUDE.md, skill) aggiornati per riflettere l'architettura corretta.
 
 ### v3.0.0 — 2026-05-24
 

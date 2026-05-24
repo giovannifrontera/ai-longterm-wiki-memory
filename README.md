@@ -6,7 +6,7 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-3.0.0-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.0.1-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
@@ -585,6 +585,15 @@ Every command outputs JSON to stdout:
 ---
 
 ## Changelog
+
+### v3.0.1 — 2026-05-24
+
+**Architecture correction + node animation fix + UI mockups**
+
+- **Architecture corrected**: v3.0.0 incorrectly removed the promotion mechanism and limited `wiki/` to identity only. Correct design: `wiki-works/<topic>/` = permanent domain knowledge; `wiki/` = cross-domain distilled knowledge (autonomously promoted); `wiki/identity/` = behavioral patterns (self-reflect). All layers indexed together in LanceDB.
+- **fix: node animation** — `wiki_context.py` (the hook that runs on every prompt) now writes retrieved page paths to `.wiki-query-log.jsonl`. The server's WebSocket watcher picks these up and broadcasts `query_hit` to the frontend, which animates the activated nodes gold in real time.
+- **UI mockups**: SVG illustrations of the graph view (with query-hit animation) and the Stats tab added to the README.
+- All human-facing docs (README, DESIGN, ROADMAP, AGENTS.md, CLAUDE.md, skills) updated to reflect the corrected architecture.
 
 ### v3.0.0 — 2026-05-24
 
