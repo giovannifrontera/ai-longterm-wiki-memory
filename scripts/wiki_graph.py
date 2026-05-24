@@ -48,7 +48,10 @@ def _load_frontmatter(text: str) -> dict:
 
 
 def _node_id(path: Path, workspace: str) -> str:
-    rel = path.relative_to(Path(workspace))
+    ws = Path(workspace)
+    # resolve() normalises relative workspace (e.g. ".") so relative_to always
+    # receives a matching absolute prefix even when workspace is not yet absolute.
+    rel = path.resolve().relative_to(ws.resolve())
     return str(rel).replace("\\", "/").removesuffix(".md")
 
 
@@ -192,9 +195,11 @@ def _semantic_edges(workspace: str, cfg: dict, files: list[Path], node_ids: set[
 
 
 def get_page_detail(workspace: str, path: str, cfg: dict) -> dict | None:
+    import os
+    workspace = os.path.abspath(workspace)
     ws = Path(workspace)
     full = (ws / path).resolve()
-    if not full.is_relative_to(ws.resolve()) or not full.exists():
+    if not full.is_relative_to(ws) or not full.exists():
         return None
 
     text = full.read_text(encoding="utf-8")
