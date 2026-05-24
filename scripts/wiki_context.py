@@ -17,6 +17,7 @@ import fnmatch
 import json
 import os
 import sys
+from datetime import datetime
 
 
 def load_config(workspace: str) -> dict | None:
@@ -89,6 +90,15 @@ def _run(args):
     top = sorted(seen.items(), key=lambda x: x[1]["dist"])[: args.k]
     if not top:
         return
+
+    # Write to query log so the dashboard can animate the retrieved nodes
+    try:
+        log_path = os.path.join(args.workspace, ".wiki-query-log.jsonl")
+        entry = {"ts": datetime.now().isoformat(), "q": args.q, "paths": [p for p, _ in top]}
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
 
     lines = ["<wiki-context>"]
     lines.append(
