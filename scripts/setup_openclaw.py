@@ -172,8 +172,10 @@ def main() -> None:
         print(f"ERROR: workspace not found: {workspace}", file=sys.stderr)
         sys.exit(1)
     if not (workspace / "wiki.config.json").exists():
-        print(f"WARNING: wiki.config.json not found in {workspace}.", file=sys.stderr)
-        print("The plugin will fail silently until wiki.config.json is created.", file=sys.stderr)
+        print(f"ERROR: wiki.config.json not found in {workspace}", file=sys.stderr)
+        print("--workspace must point to the directory that contains wiki.config.json,", file=sys.stderr)
+        print("not to a subdirectory (e.g. wiki/ or wiki-works/).", file=sys.stderr)
+        sys.exit(1)
 
     # Resolve wiki_context.py path
     script_path = (Path(__file__).parent / "wiki_context.py").resolve()

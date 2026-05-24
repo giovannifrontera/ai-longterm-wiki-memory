@@ -23,6 +23,12 @@ from datetime import datetime
 def load_config(workspace: str) -> dict | None:
     config_path = os.path.join(workspace, "wiki.config.json")
     if not os.path.exists(config_path):
+        print(
+            f"wiki_context: wiki.config.json not found in {workspace!r} — "
+            "check that --workspace points to the directory containing wiki.config.json, "
+            "not to a subdirectory (e.g. wiki/ or wiki-works/).",
+            file=sys.stderr,
+        )
         return None
     with open(config_path, encoding="utf-8") as f:
         return json.load(f)
