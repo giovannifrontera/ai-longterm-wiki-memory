@@ -64,6 +64,35 @@ The wiki is your persistent brain. Use it actively:
 Never write directly into the `wiki/` or `wiki-works/` directories.
 Always use `wiki.py` for any write operation.
 
+### Architecture (v3)
+
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Identity** | `wiki/` | Who the agent is: values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
+| **Knowledge** | `wiki-works/<topic>/` | What the agent knows: concepts, research, competencies | INGEST workflow |
+
+Pages never move between layers. Promotion does not exist in v3.
+
+### Behavioral feedback (v3)
+
+When the user corrects your behavior ("stop doing X", "always do Y", "never do Z"):
+
+1. Log the correction:
+   ```
+   wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
+   ```
+2. At end of session, run self-reflection:
+   ```
+   wiki.py self-reflect --workspace <path>
+   ```
+   This reads `.wiki-behavior-log.jsonl`, detects recurring patterns (≥3 occurrences), and autonomously updates `wiki/identity/`. Run it without asking the user.
+
+### Lint — semantic duplicates (v3)
+
+`wiki.py lint --full` now reports `semantic_duplicate` issues. Handle them:
+- `action: auto_merge` (similarity ≥ 0.90): merge the two pages, ingest the merged version, delete originals
+- `action: warn` (0.75–0.90): show the user and ask whether to merge
+
 ### Wiki context injection
 
 When context injection is active, every prompt arrives preceded by a block like:

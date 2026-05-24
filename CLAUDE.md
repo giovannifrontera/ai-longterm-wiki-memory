@@ -35,6 +35,26 @@ At the start of every session:
 
 Never write directly into `wiki/` or `wiki-works/`. Always use `wiki.py`.
 
+### Architecture (v3)
+
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Identity** | `wiki/` | Who the agent is: values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
+| **Knowledge** | `wiki-works/<topic>/` | What the agent knows: concepts, research, competencies | INGEST workflow |
+
+Pages never move between layers. Promotion does not exist in v3.
+
+### Behavioral feedback (v3)
+
+When the user corrects your behavior:
+```
+wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
+```
+At end of session, run autonomously (no user confirmation needed):
+```
+wiki.py self-reflect --workspace <path>
+```
+
 ### Wiki context injection
 
 When a `<wiki-context>` block is present, use it directly — do not run `wiki.py query` again for the same prompt.
