@@ -34,10 +34,20 @@
         "default": 3,
         "description": "Number of wiki pages to inject per prompt"
       },
+      "maxChars": {
+        "type": "integer",
+        "default": 600,
+        "description": "Max characters per wiki chunk included in the context block"
+      },
       "timeoutMs": {
         "type": "integer",
         "default": 15000,
         "description": "Timeout for wiki_context.py in milliseconds"
+      },
+      "debug": {
+        "type": "boolean",
+        "default": false,
+        "description": "Write diagnostic log to <workspace>/.wiki-plugin-debug.log on every prompt"
       }
     }
   }

@@ -1,6 +1,6 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 
 export default definePluginEntry({
   id: "wiki-context-plugin",
@@ -15,14 +15,12 @@ export default definePluginEntry({
       wikiContextScript?: string;
       pythonExecutable?: string;
       k?: number;
+      maxChars?: number;
       timeoutMs?: number;
       debug?: boolean;
     };
 
     const debug = cfg.debug === true;
-    const log = (...args: unknown[]) => {
-      if (debug) process.stderr.write("[wiki-context-plugin] " + args.join(" ") + "\n");
-    };
 
     if (!cfg.workspace || !cfg.wikiContextScript) {
       console.warn(
@@ -43,17 +41,15 @@ export default definePluginEntry({
 
     const python = cfg.pythonExecutable ?? "python";
     const k = String(cfg.k ?? 3);
+    const maxChars = String(cfg.maxChars ?? 600);
     const timeoutMs = cfg.timeoutMs ?? 15_000;
-
-    log(`registered — workspace=${workspace} script=${wikiContextScript} python=${python} k=${k} timeoutMs=${timeoutMs}`);
+    const debugLog = `${workspace}/.wiki-plugin-debug.log`;
 
     api.on(
       "before_prompt_build",
       async (event) => {
         const ev = event as Record<string, unknown>;
-
-        // Log all top-level keys in debug mode so we can find the right field name.
-        log(`before_prompt_build fired — event keys: ${Object.keys(ev).join(", ")}`);
+        const eventKeys = Object.keys(ev).join(", ");
 
         // Try known field names across SDK versions.
         const userText: string =
@@ -65,14 +61,18 @@ export default definePluginEntry({
           ev.text as string ??
           "";
 
-        log(`userText extracted (${userText.length} chars): ${userText.slice(0, 80)}`);
-
         if (!userText.trim()) {
-          log("userText is empty — skipping wiki_context.py call");
+          if (debug) {
+            try {
+              writeFileSync(debugLog,
+                `[${new Date().toISOString()}] hook fired but userText empty\nevent keys: ${eventKeys}\n`, "utf-8");
+            } catch {}
+          }
           return {};
         }
 
         let output = "";
+        let errorMsg = "";
         try {
           output = execFileSync(
             python,
@@ -81,14 +81,24 @@ export default definePluginEntry({
               "--workspace", workspace,
               "--q", userText,
               "--k", k,
+              "--max-chars", maxChars,
             ],
             { encoding: "utf-8", timeout: timeoutMs }
           ).trim();
-
-          log(`wiki_context.py returned ${output.length} chars`);
         } catch (err) {
-          log(`wiki_context.py error: ${err}`);
+          errorMsg = String(err);
           // Always fail silently — never block the user's prompt.
+        }
+
+        if (debug) {
+          try {
+            writeFileSync(debugLog,
+              `[${new Date().toISOString()}]\n` +
+              `event keys: ${eventKeys}\n` +
+              `userText (${userText.length} chars): ${userText.slice(0, 120)}\n` +
+              `output (${output.length} chars): ${output.slice(0, 200)}\n` +
+              (errorMsg ? `error: ${errorMsg}\n` : ""), "utf-8");
+          } catch {}
         }
 
         if (output) {

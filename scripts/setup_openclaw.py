@@ -213,17 +213,14 @@ def main() -> None:
         print(f"ERROR: could not parse {config_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Check if already installed
-    plugins = config.setdefault("plugins", [])
-    for entry in plugins:
-        if entry.get("id") == "wiki-context-plugin":
-            print(f"Plugin already present in {config_path} — nothing to do.")
-            sys.exit(0)
+    # Check if already installed — OpenClaw uses plugins.entries.<id> dict format
+    entries = config.setdefault("plugins", {}).setdefault("entries", {})
+    if "wiki-context-plugin" in entries:
+        print(f"Plugin already present in {config_path} — nothing to do.")
+        sys.exit(0)
 
-    # Build plugin entry
+    # Build plugin entry (no top-level "id" or "path" — OpenClaw resolves by key)
     plugin_entry = {
-        "id": "wiki-context-plugin",
-        "path": str(plugin_path).replace("\\", "/"),
         "config": {
             "workspace": str(workspace).replace("\\", "/"),
             "wikiContextScript": str(script_path).replace("\\", "/"),
@@ -232,7 +229,7 @@ def main() -> None:
             "timeoutMs": args.timeout_ms,
         },
     }
-    plugins.append(plugin_entry)
+    entries["wiki-context-plugin"] = plugin_entry
 
     if args.dry_run:
         print(f"DRY RUN — would write to: {config_path}\n")

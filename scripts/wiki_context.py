@@ -44,6 +44,8 @@ def main():
                         help="Testo della query (il prompt utente)")
     parser.add_argument("--k", type=int, default=3,
                         help="Numero di pagine da restituire (default: 3)")
+    parser.add_argument("--max-chars", type=int, default=600, dest="max_chars",
+                        help="Caratteri massimi per chunk (default: 600)")
     args = parser.parse_args()
 
     try:
@@ -91,7 +93,7 @@ def _run(args):
             continue
         dist = float(r.get("_distance", 1.0))
         if path not in seen or dist < seen[path]["dist"]:
-            seen[path] = {"dist": dist, "chunk_text": chunk}
+            seen[path] = {"dist": dist, "chunk_text": chunk[: args.max_chars]}
 
     top = sorted(seen.items(), key=lambda x: x[1]["dist"])[: args.k]
     if not top:
