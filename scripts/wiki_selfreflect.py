@@ -1,7 +1,6 @@
 """Self-reflection: behavior logging and autonomous identity updates."""
 
 import json
-import os
 import re
 from collections import Counter
 from datetime import datetime
