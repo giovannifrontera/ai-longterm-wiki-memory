@@ -16,6 +16,12 @@ export default definePluginEntry({
       pythonExecutable?: string;
       k?: number;
       timeoutMs?: number;
+      debug?: boolean;
+    };
+
+    const debug = cfg.debug === true;
+    const log = (...args: unknown[]) => {
+      if (debug) process.stderr.write("[wiki-context-plugin] " + args.join(" ") + "\n");
     };
 
     if (!cfg.workspace || !cfg.wikiContextScript) {
@@ -39,24 +45,36 @@ export default definePluginEntry({
     const k = String(cfg.k ?? 3);
     const timeoutMs = cfg.timeoutMs ?? 15_000;
 
+    log(`registered — workspace=${workspace} script=${wikiContextScript} python=${python} k=${k} timeoutMs=${timeoutMs}`);
+
     api.on(
       "before_prompt_build",
       async (event) => {
-        // NOTE: The exact field name for the user's message text depends on the
-        // OpenClaw SDK version. Check your SDK's TypeScript types if this returns
-        // an empty string. Common alternatives: event.prompt, event.userMessage,
-        // event.currentPrompt, event.input.
+        const ev = event as Record<string, unknown>;
+
+        // Log all top-level keys in debug mode so we can find the right field name.
+        log(`before_prompt_build fired — event keys: ${Object.keys(ev).join(", ")}`);
+
+        // Try known field names across SDK versions.
         const userText: string =
-          (event as Record<string, unknown>).userMessage as string ??
-          (event as Record<string, unknown>).prompt as string ??
-          (event as Record<string, unknown>).currentPrompt as string ??
-          (event as Record<string, unknown>).input as string ??
+          ev.userMessage as string ??
+          ev.prompt as string ??
+          ev.currentPrompt as string ??
+          ev.input as string ??
+          ev.message as string ??
+          ev.text as string ??
           "";
 
-        if (!userText.trim()) return {};
+        log(`userText extracted (${userText.length} chars): ${userText.slice(0, 80)}`);
 
+        if (!userText.trim()) {
+          log("userText is empty — skipping wiki_context.py call");
+          return {};
+        }
+
+        let output = "";
         try {
-          const output = execFileSync(
+          output = execFileSync(
             python,
             [
               wikiContextScript,
@@ -67,11 +85,14 @@ export default definePluginEntry({
             { encoding: "utf-8", timeout: timeoutMs }
           ).trim();
 
-          if (output) {
-            return { prependContext: output };
-          }
-        } catch {
+          log(`wiki_context.py returned ${output.length} chars`);
+        } catch (err) {
+          log(`wiki_context.py error: ${err}`);
           // Always fail silently — never block the user's prompt.
+        }
+
+        if (output) {
+          return { prependContext: output };
         }
 
         return {};
