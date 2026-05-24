@@ -1,6 +1,9 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { existsSync, writeFileSync } from "node:fs";
+
+const execFileAsync = promisify(execFile);
 
 export default definePluginEntry({
   id: "wiki-context-plugin",
@@ -9,8 +12,8 @@ export default definePluginEntry({
     "Runs wiki_context.py before every prompt and prepends relevant wiki pages as <wiki-context> block.",
 
   register(api) {
-    // OpenClaw exposes plugin config as api.config (not api.getConfig())
-    const cfg = ((api as Record<string, unknown>).config ?? {}) as {
+    // OpenClaw passes plugin-specific config via api.pluginConfig, not api.config
+    const cfg = ((api as Record<string, unknown>).pluginConfig ?? {}) as {
       workspace?: string;
       wikiContextScript?: string;
       pythonExecutable?: string;
@@ -21,6 +24,8 @@ export default definePluginEntry({
     };
 
     const debug = cfg.debug === true;
+
+    console.log("[wiki-context-plugin] registering — pluginConfig keys:", Object.keys(cfg).join(", "));
 
     if (!cfg.workspace || !cfg.wikiContextScript) {
       console.warn(
@@ -45,9 +50,13 @@ export default definePluginEntry({
     const timeoutMs = cfg.timeoutMs ?? 15_000;
     const debugLog = `${workspace}/.wiki-plugin-debug.log`;
 
+    console.log(`[wiki-context-plugin] registered — workspace: ${workspace}, k: ${k}`);
+
     api.on(
       "before_prompt_build",
       async (event) => {
+        console.log("[wiki-context-plugin] hook fired");
+
         const ev = event as Record<string, unknown>;
         const eventKeys = Object.keys(ev).join(", ");
 
@@ -60,6 +69,8 @@ export default definePluginEntry({
           ev.message as string ??
           ev.text as string ??
           "";
+
+        console.log(`[wiki-context-plugin] event keys: ${eventKeys} | userText length: ${userText.length}`);
 
         if (!userText.trim()) {
           if (debug) {
@@ -74,7 +85,7 @@ export default definePluginEntry({
         let output = "";
         let errorMsg = "";
         try {
-          output = execFileSync(
+          const result = await execFileAsync(
             python,
             [
               wikiContextScript,
@@ -84,11 +95,15 @@ export default definePluginEntry({
               "--max-chars", maxChars,
             ],
             { encoding: "utf-8", timeout: timeoutMs }
-          ).trim();
+          );
+          output = result.stdout.trim();
         } catch (err) {
           errorMsg = String(err);
+          console.error(`[wiki-context-plugin] execFile error: ${errorMsg}`);
           // Always fail silently — never block the user's prompt.
         }
+
+        console.log(`[wiki-context-plugin] output length: ${output.length}`);
 
         if (debug) {
           try {
