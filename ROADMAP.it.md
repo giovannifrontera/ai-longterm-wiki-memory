@@ -139,12 +139,11 @@ Per revisioni sistematiche: comando `wiki.py export --format prisma --workspace 
 
 ---
 
-## [IDEA] wiki-works → wiki promotion automatica
+## [RIMOSSO in v3] wiki-works → wiki promotion automatica
 
-**Stato:** Idea grezza  
-**Effort:** Basso
+**Stato:** Rimosso in v3.0.0 — concetto non più applicabile.
 
-`wiki.py promote --page wiki-works/trading/concepts/momentum.md` che sposta una pagina da wiki-works/ a wiki/, aggiorna tutti i link interni, e logga `promote` in log.md. Oggi il processo è manuale.
+In v3, `wiki/` è il layer identità dell'agente (valori, pattern comportamentali). `wiki-works/` è la conoscenza di dominio. I due layer sono separati per design e le pagine non si spostano mai tra loro. Usare `wiki.py self-reflect` per aggiornamenti autonomi dell'identità.
 
 ---
 

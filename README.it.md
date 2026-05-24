@@ -1,7 +1,7 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-2.3.0-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-92%20passati-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/versione-3.0.0-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-106%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
@@ -507,6 +507,15 @@ Ogni comando produce JSON su stdout:
 ---
 
 ## Changelog
+
+### v3.0.0 — 2026-05-24
+
+**Identity Layer + Deduplicazione Semantica + Auto-Riflessione Autonoma**
+
+- **wiki/ risemantizzato**: `wiki/` è ora il layer identità/coscienza dell'agente (valori, stile, pattern comportamentali appresi). `wiki-works/` è il layer conoscenza. La promozione non esiste più.
+- **Deduplicazione semantica**: `lint --full` rileva duplicati semantici via cosine similarity. Similarity ≥ 0.90 → candidato auto-merge. 0.75–0.90 → warning. Configurabile via `thresholds.dedup_auto` e `thresholds.dedup_warn`.
+- **Auto-riflessione autonoma**: `wiki.py behavior-log` logga correzioni comportamentali. `wiki.py self-reflect` aggiorna autonomamente `wiki/identity/` quando un pattern supera la soglia (`self_reflection.correction_threshold`, default 3). Nessuna approvazione umana richiesta.
+- **Nessuna contaminazione cross-layer**: le pagine `wiki/` sono escluse dal confronto semantico con le pagine `wiki-works/`.
 
 ### v2.3.0 — 2026-05-24
 

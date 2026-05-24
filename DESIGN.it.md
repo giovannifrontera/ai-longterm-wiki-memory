@@ -43,8 +43,8 @@ Questo elimina la classe intera di bug "index out of sync".
 | Strato | Descrizione | Natura |
 |--------|-------------|--------|
 | **Memoria Vettoriale** (LanceDB) | Retrieval semantico automatico | Implicita, ricostruibile |
-| **Livello 1** (wiki/) | Conoscenza stabile, curata | Esplicita, permanente |
-| **Livello 2** (wiki-works/) | Ricerche attive, progetti | Esplicita, temporanea |
+| **Livello 1** (wiki/) | Identità e coscienza dell'agente: valori, stile, pattern comportamentali appresi | Esplicita, permanente |
+| **Livello 2** (wiki-works/) | Conoscenza di dominio: ricerche, concetti, competenze per argomento | Esplicita, evolutiva |
 
 ---
 
@@ -451,18 +451,13 @@ Definisce per ogni wiki:
 
 ```
   ATTIVO → DORMIENTE → ARCHIVIATO
-     ↓
-  FUSO IN wiki/ (Livello 1)
 ```
 
 - **Attivo**: riceve ingest e query
 - **Dormiente**: non si tocca, accessibile in lettura
 - **Archiviato**: `wiki-works/.archive/nome-progetto/` — LanceDB entries cancellate
-- **Fuso**: pagine di valore permanente migrate in `wiki/` via INGEST atomico
 
-**Criteri per fusione in wiki/**: pagina in wiki-works che è stata citata in ≥ 3 query
-distinte, o che l'utente esplicitamente promuove, o che il LINT identifica come ponte tra
-più progetti.
+**Nota (v3):** La fusione da wiki-works/ a wiki/ non esiste più. `wiki/` è il layer identità dell'agente e viene aggiornato esclusivamente tramite `wiki.py self-reflect`. La conoscenza rimane in `wiki-works/`.
 
 ---
 

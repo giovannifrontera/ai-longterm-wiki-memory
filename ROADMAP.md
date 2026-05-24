@@ -139,12 +139,11 @@ For systematic reviews: a `wiki.py export --format prisma --workspace wiki-works
 
 ---
 
-## [IDEA] wiki-works → wiki automatic promotion
+## [REMOVED in v3] wiki-works → wiki automatic promotion
 
-**Status:** Rough idea
-**Effort:** Low
+**Status:** Removed in v3.0.0 — concept no longer applicable.
 
-`wiki.py promote --page wiki-works/trading/concepts/momentum.md` that moves a page from wiki-works/ to wiki/, updates all internal links, and logs `promote` in log.md. Today the process is manual.
+In v3, `wiki/` is the agent's identity layer (values, behavioral patterns). `wiki-works/` is domain knowledge. The two layers are separate by design and pages never cross between them. Use `wiki.py self-reflect` instead for autonomous identity updates.
 
 ---
 
