@@ -19,6 +19,18 @@ Your AI agent forgets everything between sessions. This gives it a structured, s
 
 </div>
 
+## Interface
+
+**Graph view** — the D3 force graph shows all wiki pages as nodes, coloured by category. When the agent retrieves pages to answer a prompt, the activated nodes pulse gold in real time via WebSocket.
+
+![Graph view with query-hit animation](docs/images/graph-view.svg)
+
+**Stats tab** — embedding coverage, most-queried pages, stale pages, semantic duplicate warnings, and auto-lint countdown.
+
+![Stats dashboard](docs/images/stats-tab.svg)
+
+---
+
 ## The problem
 
 AI agents forget everything between sessions. Existing memory systems are flat — a pile of timestamped facts, not a knowledge base. When you work on recurring research (academic literature, competitive analysis, trading signals, legal cases), you need knowledge that is **organized, interconnected, and semantically searchable** — and that grows over time without human bookkeeping.
