@@ -510,12 +510,12 @@ Ogni comando produce JSON su stdout:
 
 ### v3.0.0 — 2026-05-24
 
-**Identity Layer + Deduplicazione Semantica + Auto-Riflessione Autonoma**
+**Cervello a tre layer + Promozione Autonoma + Deduplicazione Semantica + Auto-Riflessione**
 
-- **wiki/ risemantizzato**: `wiki/` è ora il layer identità/coscienza dell'agente (valori, stile, pattern comportamentali appresi). `wiki-works/` è il layer conoscenza. La promozione non esiste più.
+- **Architettura a tre layer**: `wiki-works/<topic>/` contiene conoscenza profonda permanente per dominio. `wiki/` contiene conoscenza trasversale distillata, promossa autonomamente dall'agente. `wiki/identity/` contiene i pattern comportamentali appresi dalle correzioni. Tutti e tre i layer sono indicizzati insieme in LanceDB — un unico spazio vettoriale.
+- **Promozione autonoma**: l'agente promuove pagine da `wiki-works/` a `wiki/` senza conferma dell'utente quando la conoscenza è trasversale (rilevante in ≥2 domini, recuperata in ≥3 query).
 - **Deduplicazione semantica**: `lint --full` rileva duplicati semantici via cosine similarity. Similarity ≥ 0.90 → candidato auto-merge. 0.75–0.90 → warning. Configurabile via `thresholds.dedup_auto` e `thresholds.dedup_warn`.
 - **Auto-riflessione autonoma**: `wiki.py behavior-log` logga correzioni comportamentali. `wiki.py self-reflect` aggiorna autonomamente `wiki/identity/` quando un pattern supera la soglia (`self_reflection.correction_threshold`, default 3). Nessuna approvazione umana richiesta.
-- **Nessuna contaminazione cross-layer**: le pagine `wiki/` sono escluse dal confronto semantico con le pagine `wiki-works/`.
 
 ### v2.3.0 — 2026-05-24
 
