@@ -36,17 +36,30 @@ Restart OpenClaw after installation.
 
 ## First-time wiki setup
 
-If the workspace does not exist yet, initialise it first:
+If the workspace does not exist yet, create the directory structure manually and add a `wiki.config.json`:
 
 ```
-py wiki.py init --workspace /path/to/workspace
+mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works
 ```
 
-Then ingest your first pages:
+Minimal `wiki.config.json`:
+```json
+{
+  "lancedb": {
+    "path": ".lancedb",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+  }
+}
+```
+
+Then index the workspace to initialise the LanceDB table:
 
 ```
-py wiki.py ingest --workspace /path/to/workspace --file /path/to/page.md
+py scripts/wiki.py index --workspace /path/to/workspace
 ```
+
+There is no `wiki.py init` command — the available commands are:
+`ingest`, `query`, `lint`, `index`, `rebuild`, `session-update`, `scan-inbox`, `ingest-pdf`, `serve`, `behavior-log`, `self-reflect`
 
 ## Usage (once installed)
 
