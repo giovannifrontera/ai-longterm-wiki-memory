@@ -415,9 +415,19 @@ def cmd_serve(args, cfg):
 
 
 def cmd_behavior_log(args, cfg):
-    from wiki_selfreflect import log_behavior
+    from wiki_selfreflect import log_behavior, event_count, run_self_reflect
     log_behavior(args.workspace, args.event)
-    ok({"op": "behavior-log", "event": args.event})
+
+    threshold = int(cfg.get("self_reflection", {}).get("correction_threshold", 3))
+    count = event_count(args.workspace, args.event)
+
+    result = {"op": "behavior-log", "event": args.event, "count": count, "threshold": threshold}
+
+    if count >= threshold:
+        reflect = run_self_reflect(args.workspace, cfg)
+        result["auto_reflect"] = reflect
+
+    ok(result)
 
 
 def cmd_self_reflect(args, cfg):

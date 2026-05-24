@@ -33,6 +33,11 @@ def _load_events(workspace: str) -> list[dict]:
     return events
 
 
+def event_count(workspace: str, event: str) -> int:
+    """Conta quante volte un evento specifico è stato loggato."""
+    return sum(1 for e in _load_events(workspace) if e["event"] == event)
+
+
 def _detect_patterns(events: list[dict], threshold: int) -> list[str]:
     """Raggruppa eventi per testo esatto, ritorna quelli >= threshold."""
     counts: Counter = Counter(e["event"] for e in events)
