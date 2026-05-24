@@ -109,6 +109,7 @@ async def logout():
 @app.get("/api/graph")
 async def api_graph():
     data = wiki_graph.build_graph(_workspace, _cfg)
+    data["agent_name"] = _cfg.get("frontend", {}).get("agent_name", "")
     return JSONResponse(data)
 
 

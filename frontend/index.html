@@ -72,6 +72,20 @@ body::before {
   flex-shrink: 0;
 }
 
+.logo-name-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#agent-subtitle {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  font-family: 'DM Mono', monospace;
+  display: none;
+}
+
 .logo-icon {
   width: 28px;
   height: 28px;
@@ -439,6 +453,40 @@ body::before {
 #empty-state .es-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
 #empty-state p { font-size: 13px; }
 
+/* ── GRAPH LEGEND ── */
+#graph-legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(14,19,25,0.88);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  z-index: 5;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+}
+
+.legend-row:last-child { margin-bottom: 0; }
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px currentColor;
+}
+
 /* Stats tab */
 .view-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 13px; margin-left: 8px; }
 .view-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -464,7 +512,10 @@ body::before {
 <header id="header">
   <div class="logo-zone">
     <div class="logo-icon">Wk</div>
-    <span class="logo-text">AI <span>Wiki</span> Memory</span>
+    <div class="logo-name-group">
+      <span class="logo-text">AI <span>Wiki</span> Memory</span>
+      <span id="agent-subtitle"></span>
+    </div>
   </div>
   <div id="project-tabs"></div>
   <div class="header-right">
@@ -486,6 +537,13 @@ body::before {
 <main id="main">
   <div id="graph-pane">
     <svg id="graph-svg"></svg>
+    <div id="graph-legend">
+      <div class="legend-row"><span class="legend-dot" style="background:#00c8ff;box-shadow:0 0 4px #00c8ff88"></span>Entità</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#00e5a0;box-shadow:0 0 4px #00e5a088"></span>Concetto</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#a855f7;box-shadow:0 0 4px #a855f788"></span>Sintesi</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#f59e42;box-shadow:0 0 4px #f59e4288"></span>Identity</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#4a6070"></span>Raw</div>
+    </div>
     <div id="empty-state">
       <div class="es-icon">◈</div>
       <p>Nessun nodo trovato</p>
@@ -555,12 +613,14 @@ const CAT_COLORS = {
   entities:  '#00c8ff',
   concepts:  '#00e5a0',
   synthesis: '#a855f7',
+  identity:  '#f59e42',
   raw:       '#4a6070',
   other:     '#4a6070',
 };
 
 const CAT_LABELS = {
-  entities: 'Entità', concepts: 'Concetto', synthesis: 'Sintesi', raw: 'Raw', other: 'Altro'
+  entities: 'Entità', concepts: 'Concetto', synthesis: 'Sintesi',
+  identity: 'Identity', raw: 'Raw', other: 'Altro'
 };
 
 let graphData = { nodes: [], edges: [] };
@@ -703,12 +763,12 @@ function renderGraph() {
 
   simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(edges).id(d => d.id)
-      .distance(d => d.type === 'semantic' ? 150 : 90)
-      .strength(d => d.type === 'semantic' ? 0.3 : 0.8))
-    .force('charge', d3.forceManyBody().strength(-280).distanceMax(400))
-    .force('center', d3.forceCenter(w / 2, h / 2).strength(0.06))
-    .force('collision', d3.forceCollide(d => 14 + (deg[d.id] || 0) * 1.8))
-    .alphaDecay(0.025);
+      .distance(d => d.type === 'semantic' ? 200 : 120)
+      .strength(d => d.type === 'semantic' ? 0.18 : 0.5))
+    .force('charge', d3.forceManyBody().strength(-500).distanceMax(600))
+    .force('center', d3.forceCenter(w / 2, h / 2).strength(0.04))
+    .force('collision', d3.forceCollide(d => 30 + (deg[d.id] || 0) * 2.5))
+    .alphaDecay(0.022);
 
   simulation.on('tick', () => {
     linkGroup.selectAll('line')
@@ -886,10 +946,18 @@ function connectWS() {
   };
 }
 
+function updateAgentName(name) {
+  if (!name) return;
+  const sub = document.getElementById('agent-subtitle');
+  if (sub) { sub.textContent = name + "'s memory"; sub.style.display = 'block'; }
+  document.title = name + "'s Wiki Memory";
+}
+
 async function fetchGraph() {
   const resp = await fetch('/api/graph');
   if (resp.status === 401) { showLogin(); return; }
   const fresh = await resp.json();
+  if (fresh.agent_name) updateAgentName(fresh.agent_name);
   // Preserve D3 simulation positions so live graph_update doesn't snap nodes to random coords
   const posMap = new Map(graphData.nodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]));
   fresh.nodes.forEach(n => { const p = posMap.get(n.id); if (p) Object.assign(n, p); });
