@@ -25,8 +25,6 @@ export default definePluginEntry({
 
     const debug = cfg.debug === true;
 
-    console.log("[wiki-context-plugin] registering — pluginConfig keys:", Object.keys(cfg).join(", "));
-
     if (!cfg.workspace || !cfg.wikiContextScript) {
       console.warn(
         "[wiki-context-plugin] Missing required config: workspace and wikiContextScript must be set."
@@ -50,13 +48,9 @@ export default definePluginEntry({
     const timeoutMs = cfg.timeoutMs ?? 15_000;
     const debugLog = `${workspace}/.wiki-plugin-debug.log`;
 
-    console.log(`[wiki-context-plugin] registered — workspace: ${workspace}, k: ${k}`);
-
     api.on(
       "before_prompt_build",
       async (event) => {
-        console.log("[wiki-context-plugin] hook fired");
-
         const ev = event as Record<string, unknown>;
         const eventKeys = Object.keys(ev).join(", ");
 
@@ -69,8 +63,6 @@ export default definePluginEntry({
           ev.message as string ??
           ev.text as string ??
           "";
-
-        console.log(`[wiki-context-plugin] event keys: ${eventKeys} | userText length: ${userText.length}`);
 
         if (!userText.trim()) {
           if (debug) {
@@ -99,11 +91,8 @@ export default definePluginEntry({
           output = result.stdout.trim();
         } catch (err) {
           errorMsg = String(err);
-          console.error(`[wiki-context-plugin] execFile error: ${errorMsg}`);
           // Always fail silently — never block the user's prompt.
         }
-
-        console.log(`[wiki-context-plugin] output length: ${output.length}`);
 
         if (debug) {
           try {
