@@ -48,6 +48,24 @@ export default definePluginEntry({
     const timeoutMs = cfg.timeoutMs ?? 15_000;
     const debugLog = `${workspace}/.wiki-plugin-debug.log`;
 
+    // Startup: verify python can import lancedb (fail silently, warn loudly)
+    void (async () => {
+      try {
+        await execFileAsync(python, ["-c", "import lancedb"], { timeout: 10_000 });
+      } catch {
+        const msg =
+          `[wiki-context-plugin] WARNING: '${python}' cannot import lancedb.\n` +
+          `Wiki context will not be injected. Set 'pythonExecutable' to the absolute path.\n` +
+          `Find the correct path: ${python} -c "import sys; print(sys.executable)"`;
+        console.warn(msg);
+        if (debug) {
+          try {
+            writeFileSync(debugLog, `[${new Date().toISOString()}] STARTUP FAIL\n${msg}\n`, "utf-8");
+          } catch {}
+        }
+      }
+    })();
+
     api.on(
       "before_prompt_build",
       async (event) => {
@@ -113,5 +131,31 @@ export default definePluginEntry({
       },
       { priority: 50, timeoutMs: timeoutMs + 5_000 }
     );
+
+    // Tool: wiki_process_raw — promote raw/ files to the index
+    // Exposed so OpenClaw agents can trigger it from chat
+    if (typeof (api as Record<string, unknown>).registerTool === "function") {
+      const apiAny = api as unknown as Record<string, (...args: unknown[]) => unknown>;
+      apiAny.registerTool(
+        "wiki_process_raw",
+        async (params: { project?: string }) => {
+          // wiki.py lives next to wiki_context.py in the same scripts/ directory
+          const wikiPy = wikiContextScript.replace(/wiki_context\.py$/, "wiki.py");
+          const args = ["process-raw", "--workspace", workspace];
+          if (params?.project) {
+            args.push("--project", params.project);
+          }
+          try {
+            const { stdout } = await execFileAsync(python, [wikiPy, ...args], {
+              encoding: "utf-8",
+              timeout: 120_000,
+            });
+            return JSON.parse(stdout);
+          } catch (err) {
+            return { status: "error", message: String(err) };
+          }
+        }
+      );
+    }
   },
 });

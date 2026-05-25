@@ -4,7 +4,7 @@
   "description": "Injects relevant wiki pages into every prompt via before_prompt_build. Requires wiki_context.py from ai-longterm-wiki-memory.",
   "main": "index.js",
   "contracts": {
-    "tools": [],
+    "tools": ["wiki_process_raw"],
     "hooks": ["before_prompt_build"]
   },
   "activation": {
@@ -27,7 +27,7 @@
       "pythonExecutable": {
         "type": "string",
         "default": "python",
-        "description": "Python executable to use. Use 'py' on Windows or full path if needed."
+        "description": "Python executable. On Windows Store Python use the absolute path (e.g. C:\\Users\\...\\python.exe)."
       },
       "k": {
         "type": "integer",
