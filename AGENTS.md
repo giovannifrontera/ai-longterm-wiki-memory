@@ -1,5 +1,8 @@
 # AGENTS.md — ai-wiki-system
 
+> **MUST — Setup check (read before anything else)**
+> If your context contains a `<wiki-setup-required>` block, invoke the `wiki-setup` skill **immediately** — before asking the user questions, before running any command, before any other action. The skill will guide you through the full setup step by step.
+
 This repo provides a long-term wiki memory system for AI agents.
 It injects semantically relevant wiki pages into every prompt automatically.
 
@@ -42,13 +45,25 @@ If the workspace does not exist yet, create the directory structure manually and
 mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works
 ```
 
-Minimal `wiki.config.json`:
+Full `wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
 ```json
 {
-  "lancedb": {
-    "path": ".lancedb",
-    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
-  }
+  "workspace": "<WORKSPACE>",
+  "pdf_inbox": { "project_default": "ricerca" },
+  "projects": {
+    "ricerca": { "path": "wiki-works/ricerca", "keywords": [] }
+  },
+  "thresholds": {
+    "index_token_budget": 4000, "staleness_days": 90,
+    "similarity_merge": 0.95, "similarity_orphan": 0.50,
+    "synthesis_min_tokens": 300, "synthesis_min_sources": 2,
+    "chunk_size_tokens": 512, "chunk_overlap_tokens": 64,
+    "page_chunk_threshold_tokens": 1500, "quality_filter_min_score": 6,
+    "dedup_auto": 0.90, "dedup_warn": 0.75
+  },
+  "self_reflection": { "enabled": true, "correction_threshold": 3 },
+  "lancedb": { "path": "memory/lancedb", "embedding_model": "BAAI/bge-m3" },
+  "exclude_from_index": []
 }
 ```
 

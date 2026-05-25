@@ -195,6 +195,11 @@ def main() -> None:
         help="Number of wiki pages to inject per prompt (default: 3)",
     )
     parser.add_argument(
+        "--no-session-check",
+        action="store_true",
+        help="Skip installing the SessionStart setup check hook",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the resulting settings.json without writing it",
@@ -308,6 +313,25 @@ def main() -> None:
         {"matcher": "", "hooks": [{"type": "command", "command": command}]}
     )
 
+    # SessionStart hook — runs wiki_check_setup.py at session start
+    if not args.no_session_check:
+        check_script = (Path(__file__).parent / "wiki_check_setup.py").resolve()
+        check_script_str = str(check_script).replace("\\", "/")
+        session_command = (
+            f'"{resolved_python}" "{check_script_str}"'
+            f' --workspace "{workspace_str}"'
+        )
+        existing_session_hooks = settings.get("hooks", {}).get("SessionStart", [])
+        session_already_installed = any(
+            "wiki_check_setup" in h.get("command", "")
+            for block in existing_session_hooks
+            for h in block.get("hooks", [])
+        )
+        if not session_already_installed:
+            settings.setdefault("hooks", {}).setdefault("SessionStart", []).append(
+                {"matcher": "", "hooks": [{"type": "command", "command": session_command}]}
+            )
+
     if args.dry_run:
         print(f"DRY RUN — would write to: {settings_path}\n")
         print(f"  python    : {resolved_python}")
@@ -334,6 +358,8 @@ def main() -> None:
     print(f"  script    : {script_str}")
     print(f"  python    : {resolved_python}")
     print(f"  k         : {args.k}")
+    if not args.no_session_check:
+        print(f"  session check: enabled (wiki_check_setup.py)")
     print()
     print("Restart Claude Code to activate the hook.")
 
