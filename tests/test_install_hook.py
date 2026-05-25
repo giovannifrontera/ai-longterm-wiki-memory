@@ -41,10 +41,40 @@ def test_explicit_python_flag_is_used_when_valid(tmp_path):
     assert sys.executable in result.stdout
 
 
-def test_invalid_python_exe_triggers_warning_not_crash(tmp_path):
+def test_invalid_python_exe_falls_back_to_sys_executable(tmp_path):
+    """--python con exe non valido deve fare fallback su sys.executable (che nel test funziona)."""
     result, _ = _run(tmp_path, ["--python", "/nonexistent/python"])
-    assert result.returncode == 0  # non deve crashare
+    assert result.returncode == 0  # sys.executable funziona → fallback ok
     assert "WARNING" in result.stderr or "warning" in result.stderr.lower()
+
+
+def test_no_valid_python_aborts_installation(tmp_path):
+    """Se nessun Python può importare lancedb, l'installazione deve abortire con exit 1."""
+    settings = tmp_path / "settings.json"
+    settings.write_text('{"hooks": {}}')
+    workspace = tmp_path / "wiki"
+    workspace.mkdir()
+    (workspace / "wiki.config.json").write_text('{"workspace": "."}')
+    # Passiamo un exe invalido e mocchiamo sys.executable con un altro invalido
+    # Simuliamo il caso peggiore: sys.executable = exe invalido via env PYTHONPATH vuoto
+    # Il modo più semplice è usare un exe che non esiste e sovrascrivere sys.executable
+    # nel subprocess — ma è complesso. Verifichiamo invece che l'eccezione esista nel codice.
+    import importlib, types
+    script_path = Path(__file__).parent.parent / "scripts" / "install_claude_code_hook.py"
+    spec = importlib.util.spec_from_file_location("install_hook", script_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    # Con due exe invalidi deve sollevare PythonNotVerifiedError
+    import pytest
+    with pytest.raises(mod.PythonNotVerifiedError):
+        mod._resolve_python.__wrapped__ if hasattr(mod._resolve_python, '__wrapped__') else None
+        # Monkey-patch _verify_python to always return False
+        original = mod._verify_python
+        mod._verify_python = lambda exe: False
+        try:
+            mod._resolve_python("/nonexistent/python")
+        finally:
+            mod._verify_python = original
 
 
 def test_verify_flag_detects_broken_exe(tmp_path):

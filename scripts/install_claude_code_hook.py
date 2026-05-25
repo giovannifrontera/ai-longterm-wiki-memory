@@ -121,45 +121,46 @@ def _verify_python(exe: str) -> bool:
         return False
 
 
-def _resolve_python(explicit: str | None) -> str:
-    """Returns a verified Python exe to write into the hook.
+class PythonNotVerifiedError(RuntimeError):
+    """Raised when no Python executable can import lancedb."""
 
-    Order: explicit (if provided and valid) → sys.executable → explicit with warning.
-    If explicit is provided but cannot import lancedb, a WARNING is emitted even if
-    sys.executable is used as fallback.
+
+_PYTHON_FIX_HINT = (
+    "Find the correct Python path with:\n"
+    "  py -c \"import sys; print(sys.executable)\"\n"
+    "Then re-run with:\n"
+    "  py scripts/install_claude_code_hook.py --workspace <path> --python <correct-path>"
+)
+
+
+def _resolve_python(explicit: str | None) -> str:
+    """Return a verified Python exe to write into the hook.
+
+    Order: explicit (if provided and valid) → sys.executable.
+    Raises PythonNotVerifiedError if no candidate can import lancedb.
     """
-    # If explicit was provided, try it first
     if explicit:
         if _verify_python(explicit):
             return explicit
-        # explicit failed: warn and fall back to sys.executable
+        # Explicit failed — try sys.executable as fallback
         print(
-            f"WARNING: '{explicit}' cannot import lancedb (FileNotFoundError or missing package).\n"
-            f"Falling back to: {sys.executable}",
+            f"WARNING: '{explicit}' cannot import lancedb. Trying {sys.executable}...",
             file=sys.stderr,
         )
         if _verify_python(sys.executable):
             return sys.executable
-        # Neither works
-        print(
-            f"WARNING: no Python tested can import lancedb.\n"
-            f"Writing '{sys.executable}' but the hook may not work.\n"
-            f"Run: {sys.executable} -m pip install -r requirements.txt",
-            file=sys.stderr,
+        raise PythonNotVerifiedError(
+            f"Neither '{explicit}' nor '{sys.executable}' can import lancedb.\n"
+            + _PYTHON_FIX_HINT
         )
-        return sys.executable
 
-    # No explicit: try sys.executable, then warn
+    # No explicit: try sys.executable only
     if _verify_python(sys.executable):
         return sys.executable
 
-    print(
-        f"WARNING: no Python tested can import lancedb.\n"
-        f"Writing '{sys.executable}' but the hook may not work.\n"
-        f"Run: {sys.executable} -m pip install -r requirements.txt",
-        file=sys.stderr,
+    raise PythonNotVerifiedError(
+        f"'{sys.executable}' cannot import lancedb.\n" + _PYTHON_FIX_HINT
     )
-    return sys.executable
 
 
 def detect_python() -> str:
@@ -248,7 +249,11 @@ def main() -> None:
     # use it as the preferred candidate; otherwise let _resolve_python find the best one.
     default_py = detect_python()
     explicit_py = args.python if args.python != default_py else None
-    resolved_python = _resolve_python(explicit_py)
+    try:
+        resolved_python = _resolve_python(explicit_py)
+    except PythonNotVerifiedError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Resolve workspace
     workspace = Path(args.workspace).resolve()
