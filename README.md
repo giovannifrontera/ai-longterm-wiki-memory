@@ -6,7 +6,7 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-3.0.1-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.1.0-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
@@ -622,6 +622,24 @@ Every command outputs JSON to stdout:
 ---
 
 ## Changelog
+
+### v3.1.0 — 2026-05-25
+
+**Installation robustness + new CLI commands + OpenClaw tool + wiki-setup skill**
+
+- **fix: Python exe verification before hook install** — `install_claude_code_hook.py` now runs `_verify_python()` before writing any hook. If no Python can import `lancedb`, the installation **aborts with exit 1** and shows the exact command to fix it — instead of silently writing a broken hook (fixes Windows Store Python `ModuleNotFoundError`).
+- **feat: `--verify` flag** — `install_claude_code_hook.py --verify` reads the existing hook from `settings.json` and confirms the Python exe can import `lancedb`. Useful for diagnosing broken existing installations.
+- **feat: SessionStart hook** — the installer now also writes a `SessionStart` hook that runs `wiki_check_setup.py` at every session start. If the workspace is not configured or LanceDB is empty, the agent receives a `<wiki-setup-required>` block in context.
+- **feat: `process-raw` subcommand** — `wiki.py process-raw --workspace <path> [--project <name>]` bulk-promotes files from `wiki-works/*/raw/` to the index after a PDF scan. Previously required manual `.tmp` workaround.
+- **fix: `ingest-pdf` same-path crash** — `shutil.copy2(src, dest)` when `src == dest` raised `PermissionError: [WinError 32]` on Windows. Now guarded with `src.resolve() != dest.resolve()`.
+- **feat: OpenClaw `wiki_process_raw` tool** — the TypeScript plugin exposes `wiki_process_raw` as a callable tool from chat. Agents can trigger bulk raw promotion without leaving the conversation.
+- **feat: OpenClaw startup Python check** — the plugin validates that the configured Python can import `lancedb` at startup and logs a visible warning if not.
+- **feat: `wiki-setup` rigid skill** — `skills/wiki-setup.md` guides any agent through full installation step by step (Claude Code §CC-1–CC-7, OpenClaw §OC-1–OC-7).
+- **feat: `wiki_check_setup.py`** — lightweight startup check script that outputs `<wiki-setup-required>` if `wiki.config.json` or LanceDB is missing/empty.
+- **docs: Windows Store Python troubleshooting** — `docs/install-openclaw.md` and `docs/install-claude-code.md` now document the `py` launcher issue and how to use `--python` with the absolute path.
+- **AGENTS.md**: `wiki.config.json` template updated to complete schema (was incomplete — missing `workspace`, `projects`, `thresholds`).
+
+**Testing:** 116 tests, all green.
 
 ### v3.0.1 — 2026-05-24
 
