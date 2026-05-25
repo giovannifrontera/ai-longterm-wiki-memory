@@ -140,3 +140,25 @@ def test_cmd_self_reflect_returns_ok(tmp_workspace, monkeypatch):
     output = json.loads(captured.getvalue())
     assert output["status"] == "ok"
     assert output["patterns_found"] == 1
+
+
+def test_ingest_pdf_already_in_inbox_does_not_crash(tmp_workspace, monkeypatch):
+    """Se il file è già in pdf-inbox/, ingest-pdf non deve crashare con WinError 32."""
+    from wiki_workflows import cmd_ingest_pdf
+
+    # Crea un PDF finto già nell'inbox
+    pdf = tmp_workspace / "pdf-inbox" / "test.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+
+    # Mock scan_inbox per non richiedere lancedb/embeddings
+    # scan_inbox è importata localmente dentro cmd_ingest_pdf da wiki_pdf_watcher
+    monkeypatch.setattr("wiki_pdf_watcher.scan_inbox",
+                        lambda ws, cfg: {"processed": 1, "deposited": [], "failed": 0})
+
+    class Args:
+        file = str(pdf)
+        workspace = str(tmp_workspace)
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+    # Non deve sollevare eccezioni
+    cmd_ingest_pdf(Args(), cfg)

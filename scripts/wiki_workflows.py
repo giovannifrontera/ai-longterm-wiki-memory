@@ -353,7 +353,9 @@ def cmd_ingest_pdf(args, cfg):
             error("file_not_found", f"File non trovato: {file_arg}", recoverable=False)
             return
         dest = inbox_dir / src.name
-        shutil.copy2(str(src), str(dest))
+        # Skip copy if source and destination are the same file (avoids WinError 32)
+        if src.resolve() != dest.resolve():
+            shutil.copy2(str(src), str(dest))
 
     result = scan_inbox(args.workspace, cfg)
     session_status = "partial-failure" if result["failed"] > 0 else "ok"
