@@ -94,7 +94,7 @@ Restart Claude Code. The next prompt should receive `<wiki-context>` (empty the 
 ### Step CC-7: Final verification
 
 ```bash
-py scripts/install_claude_code_hook.py --verify
+py scripts/install_claude_code_hook.py --verify --settings <WORKSPACE>/.claude/settings.json
 ```
 
 Expected: `OK: '...' can import lancedb`

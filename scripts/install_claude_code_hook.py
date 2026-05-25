@@ -298,20 +298,22 @@ def main() -> None:
         f" --k {args.k}"
     )
 
-    # Check if already installed
+    # Check if UserPromptSubmit hook is already installed
     existing_hooks = (
         settings.get("hooks", {}).get("UserPromptSubmit", [])
     )
-    for block in existing_hooks:
-        for h in block.get("hooks", []):
-            if "wiki_context.py" in h.get("command", ""):
-                print(f"Hook already present in {settings_path} — nothing to do.")
-                sys.exit(0)
-
-    # Inject hook
-    settings.setdefault("hooks", {}).setdefault("UserPromptSubmit", []).append(
-        {"matcher": "", "hooks": [{"type": "command", "command": command}]}
+    user_prompt_already_installed = any(
+        "wiki_context.py" in h.get("command", "")
+        for block in existing_hooks
+        for h in block.get("hooks", [])
     )
+
+    if not user_prompt_already_installed:
+        settings.setdefault("hooks", {}).setdefault("UserPromptSubmit", []).append(
+            {"matcher": "", "hooks": [{"type": "command", "command": command}]}
+        )
+    else:
+        print(f"UserPromptSubmit hook already present — skipping.")
 
     # SessionStart hook — runs wiki_check_setup.py at session start
     if not args.no_session_check:

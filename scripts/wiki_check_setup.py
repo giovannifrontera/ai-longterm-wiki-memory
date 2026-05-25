@@ -67,8 +67,9 @@ def main():
 
     try:
         issues = check(args.workspace)
-    except Exception:
-        sys.exit(0)  # mai bloccare il prompt
+    except Exception as e:
+        print(f"wiki_check_setup internal error: {e}", file=sys.stderr)
+        sys.exit(0)  # never block the prompt
 
     if issues:
         lines = ["<wiki-setup-required>"]
