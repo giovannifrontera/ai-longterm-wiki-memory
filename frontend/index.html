@@ -114,23 +114,70 @@ body::before {
 
 #project-tabs {
   display: flex;
-  gap: 2px;
-  padding: 0 16px;
-  overflow-x: auto;
+  padding: 0 12px;
   flex-shrink: 0;
   height: 100%;
   align-items: center;
+  position: relative;
 }
 
-#project-tabs::-webkit-scrollbar { display: none; }
-
-.tab {
-  padding: 5px 14px;
-  border-radius: 4px;
+/* ── DROPDOWN TRIGGER ── */
+#proj-trigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text);
   font-size: 11px;
   font-family: 'DM Mono', monospace;
   cursor: pointer;
-  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+  min-width: 110px;
+  justify-content: space-between;
+}
+
+#proj-trigger:hover { border-color: var(--accent); color: var(--accent); }
+#proj-trigger.open  { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.06); }
+
+#proj-trigger .arrow {
+  font-size: 8px;
+  transition: transform 0.18s;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+#proj-trigger.open .arrow { transform: rotate(180deg); }
+
+/* ── DROPDOWN PANEL ── */
+#proj-dropdown {
+  position: fixed;
+  top: 0; left: 0; /* posizionato via JS */
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px;
+  z-index: 50;
+  display: none;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 320px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+}
+
+#proj-dropdown.open { display: flex; }
+
+.tab {
+  padding: 4px 11px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
   white-space: nowrap;
@@ -139,7 +186,7 @@ body::before {
 }
 
 .tab:hover { color: var(--text); border-color: var(--border2); }
-.tab.active { background: rgba(0,200,255,0.08); border-color: var(--accent); color: var(--accent); }
+.tab.active { background: rgba(0,200,255,0.1); border-color: var(--accent); color: var(--accent); }
 
 .header-right {
   margin-left: auto;
@@ -494,6 +541,130 @@ body::before {
 .kpi-val { font-size: 28px; font-weight: 700; color: var(--text); font-family: 'DM Mono', monospace; }
 .kpi-label { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
 @media (max-width: 700px) { #kpi-grid { grid-template-columns: 1fr 1fr !important; } }
+
+/* ═══════════════════════════════════════════════════════
+   TOUCH — fix iOS Safari fixed+blend-mode bug sul noise overlay
+   L'effetto illuminazione usa mix-blend-mode: overlay che su
+   iOS non funziona su position:fixed → switchiamo a normal+opacity
+   e aggiungiamo un glow radiale che segue il tocco.
+   ═══════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  body::before {
+    position: absolute;
+    mix-blend-mode: normal;
+    opacity: 0.025;
+  }
+
+  /* Glow illuminazione che segue il tocco (equivalente mobile del mouse-glow) */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(
+      circle 240px at var(--glow-x, 50%) var(--glow-y, 30%),
+      rgba(0,200,255,0.08) 0%,
+      rgba(168,85,247,0.04) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE — 768px
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  :root { --panel-w: 100%; }
+
+  /* Header: diventa 2 righe — riga logo/controlli + riga tabs */
+  #header {
+    flex-wrap: wrap;
+    height: auto;
+  }
+
+  .logo-zone {
+    border-right: none;
+    height: 48px;
+    flex: 0 0 auto;
+    padding: 0 12px;
+  }
+
+  .header-right {
+    flex: 1;
+    height: 48px;
+    padding: 0 10px;
+    gap: 5px;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  /* Dropdown trigger: tap target adeguato su mobile */
+  #proj-trigger { min-height: 34px; font-size: 11px; min-width: 100px; }
+
+  /* De-cluttering header mobile */
+  #stats-pill { display: none; }
+  #ws-label   { display: none; }
+
+  /* Search compatta */
+  #search { width: 90px; font-size: 11px; padding: 5px 8px 5px 26px; }
+  .search-wrap::before { font-size: 12px; left: 7px; }
+
+  /* Bottoni vista compatti */
+  .view-btn { padding: 3px 8px; font-size: 11px; margin-left: 2px; }
+
+  /* Logo compatto */
+  .logo-text { font-size: 11px; }
+  .logo-icon { width: 24px; height: 24px; font-size: 12px; }
+
+  /* ── PAGE PANE → bottom sheet ── */
+  #page-pane {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-height: 72vh;
+    height: 72vh;
+    border-left: none;
+    border-top: 1px solid var(--border2);
+    border-radius: 16px 16px 0 0;
+    z-index: 30;
+    box-shadow: 0 -20px 60px rgba(0,0,0,0.6);
+  }
+
+  /* Drag handle visivo */
+  #ph::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    margin: 0 auto 10px;
+  }
+
+  /* Titolo pagina più compatto */
+  #ph-title { font-size: 15px; }
+  #ph { padding: 12px 16px 12px; }
+  #pb { padding: 14px 16px; font-size: 12px; }
+  #pl { padding: 0 16px 20px; }
+
+  /* Stats pane: collassa le 2 colonne in 1 su mobile */
+  #stats-pane > div:nth-child(3),
+  #stats-pane > div:nth-child(4) {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  #search { width: 72px; }
+  .logo-zone { padding: 0 10px; gap: 7px; }
+  #agent-subtitle { display: none !important; }
+}
 </style>
 </head>
 <body>
@@ -517,7 +688,12 @@ body::before {
       <span id="agent-subtitle"></span>
     </div>
   </div>
-  <div id="project-tabs"></div>
+  <div id="project-tabs">
+    <button id="proj-trigger" onclick="toggleProjDropdown(event)">
+      <span id="proj-label">Tutti</span>
+      <span class="arrow">▼</span>
+    </button>
+  </div>
   <div class="header-right">
     <div class="view-tabs">
       <button id="btn-graph" class="view-btn active" onclick="switchTab('graph')">Graf</button>
@@ -543,6 +719,10 @@ body::before {
       <div class="legend-row"><span class="legend-dot" style="background:#a855f7;box-shadow:0 0 4px #a855f788"></span>Sintesi</div>
       <div class="legend-row"><span class="legend-dot" style="background:#f59e42;box-shadow:0 0 4px #f59e4288"></span>Identity</div>
       <div class="legend-row"><span class="legend-dot" style="background:#4a6070"></span>Raw</div>
+      <div class="legend-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:linear-gradient(90deg,#00c8ff,#2a3a4a);flex-shrink:0;margin-right:0"></span>
+        <span style="margin-left:8px">vivido = recente · grigio = vecchio</span>
+      </div>
     </div>
     <div id="empty-state">
       <div class="es-icon">◈</div>
@@ -600,6 +780,8 @@ body::before {
   </aside>
 </main>
 
+<div id="proj-dropdown"></div>
+
 <div id="tooltip">
   <div class="tip-title"></div>
   <div class="tip-desc"></div>
@@ -617,6 +799,50 @@ const CAT_COLORS = {
   raw:       '#4a6070',
   other:     '#4a6070',
 };
+
+// Restituisce un colore HSL derivato dal colore di categoria, attenuato in base all'età.
+// Pagine fresche (< 30gg) → colore pieno; pagine vecchie (> 180gg) → molto desaturate/scure.
+function ageColor(hexColor, lastModifiedTs) {
+  if (!lastModifiedTs) return hexColor;
+  const ageDays = (Date.now() / 1000 - lastModifiedTs) / 86400;
+
+  // hex → r,g,b → hsl
+  const r = parseInt(hexColor.slice(1,3),16)/255;
+  const g = parseInt(hexColor.slice(3,5),16)/255;
+  const b = parseInt(hexColor.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h, s, l = (max+min)/2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case r: h = ((g-b)/d + (g<b?6:0))/6; break;
+      case g: h = ((b-r)/d + 2)/6; break;
+      default: h = ((r-g)/d + 4)/6;
+    }
+  }
+
+  // Invecchiamento: dopo 30gg inizia desaturazione, dopo 180gg è al minimo
+  const fresh = 30, stale = 180;
+  const t = Math.max(0, Math.min(1, (ageDays - fresh) / (stale - fresh)));
+  // Riduce saturazione (fino a -70%) e luminosità (fino a -25%)
+  const sNew = s * (1 - t * 0.70);
+  const lNew = l * (1 - t * 0.25);
+
+  return `hsl(${Math.round(h*360)},${Math.round(sNew*100)}%,${Math.round(lNew*100)}%)`;
+}
+
+// Tooltip testo anzianità
+function ageLabel(lastModifiedTs) {
+  if (!lastModifiedTs) return '';
+  const d = Math.floor((Date.now()/1000 - lastModifiedTs) / 86400);
+  if (d < 1)   return 'oggi';
+  if (d < 7)   return d + 'g fa';
+  if (d < 30)  return Math.floor(d/7) + 'sett fa';
+  if (d < 365) return Math.floor(d/30) + 'mesi fa';
+  return Math.floor(d/365) + 'a fa';
+}
 
 const CAT_LABELS = {
   entities: 'Entità', concepts: 'Concetto', synthesis: 'Sintesi',
@@ -727,8 +953,9 @@ function renderGraph() {
             const descEl = tip.querySelector('.tip-desc');
             descEl.textContent = d.description || '';
             descEl.style.display = d.description ? 'block' : 'none';
+            const ageStr = d.last_modified ? ' · ' + ageLabel(d.last_modified) : '';
             tip.querySelector('.tip-cat').textContent =
-              (CAT_LABELS[d.category] || d.category) + ' · ' + d.project;
+              (CAT_LABELS[d.category] || d.category) + ' · ' + d.project + ageStr;
           })
           .on('mousemove', ev => {
             tip.style.left = (ev.clientX + 14) + 'px';
@@ -738,20 +965,25 @@ function renderGraph() {
 
         g.append('circle')
           .attr('r', d => 10 + (deg[d.id] || 0) * 1.8)
-          .attr('fill', d => CAT_COLORS[d.category] + '18')
-          .attr('stroke', d => CAT_COLORS[d.category] + '55')
+          .attr('fill', d => ageColor(CAT_COLORS[d.category] || CAT_COLORS.other, d.last_modified) + '28')
+          .attr('stroke', d => ageColor(CAT_COLORS[d.category] || CAT_COLORS.other, d.last_modified) + '66')
           .attr('stroke-width', 1);
         g.append('circle')
           .attr('r', d => 5 + (deg[d.id] || 0) * 1.2)
-          .attr('fill', d => CAT_COLORS[d.category] || CAT_COLORS.other)
+          .attr('fill', d => ageColor(CAT_COLORS[d.category] || CAT_COLORS.other, d.last_modified))
           .attr('stroke', '#080c10').attr('stroke-width', 1.5);
         g.append('text').attr('dy', '0.35em').text(d => d.title);
         g.transition().duration(400).style('opacity', 1);
         return g;
       },
       up => {
-        up.select('circle:nth-of-type(1)').attr('r', d => 10 + (deg[d.id] || 0) * 1.8);
-        up.select('circle:nth-of-type(2)').attr('r', d => 5  + (deg[d.id] || 0) * 1.2);
+        up.select('circle:nth-of-type(1)')
+          .attr('r', d => 10 + (deg[d.id] || 0) * 1.8)
+          .attr('fill', d => ageColor(CAT_COLORS[d.category] || CAT_COLORS.other, d.last_modified) + '28')
+          .attr('stroke', d => ageColor(CAT_COLORS[d.category] || CAT_COLORS.other, d.last_modified) + '66');
+        up.select('circle:nth-of-type(2)')
+          .attr('r', d => 5 + (deg[d.id] || 0) * 1.2)
+          .attr('fill', d => ageColor(CAT_COLORS[d.category] || CAT_COLORS.other, d.last_modified));
         return up;
       },
       ex => ex.transition().duration(300).style('opacity', 0).remove()
@@ -781,16 +1013,45 @@ function renderGraph() {
 
 function renderTabs() {
   const projects = ['tutti', ...new Set(graphData.nodes.map(n => n.project))].sort();
-  const tabs = document.getElementById('project-tabs');
-  tabs.textContent = '';
+  const dropdown = document.getElementById('proj-dropdown');
+  dropdown.replaceChildren();
   projects.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'tab' + (p === selectedProject ? ' active' : '');
     btn.textContent = p;
-    btn.addEventListener('click', () => { selectedProject = p; renderTabs(); renderGraph(); });
-    tabs.appendChild(btn);
+    btn.addEventListener('click', () => {
+      selectedProject = p;
+      document.getElementById('proj-label').textContent = p === 'tutti' ? 'Tutti' : p;
+      closeProjDropdown();
+      renderTabs();
+      renderGraph();
+    });
+    dropdown.appendChild(btn);
   });
+  // Aggiorna label trigger
+  document.getElementById('proj-label').textContent =
+    selectedProject === 'tutti' ? 'Tutti' : selectedProject;
 }
+
+function toggleProjDropdown(e) {
+  e.stopPropagation();
+  const trigger = document.getElementById('proj-trigger');
+  const dropdown = document.getElementById('proj-dropdown');
+  const isOpen = dropdown.classList.contains('open');
+  if (isOpen) { closeProjDropdown(); return; }
+  const r = trigger.getBoundingClientRect();
+  dropdown.style.top  = (r.bottom + 6) + 'px';
+  dropdown.style.left = r.left + 'px';
+  dropdown.classList.add('open');
+  trigger.classList.add('open');
+}
+
+function closeProjDropdown() {
+  document.getElementById('proj-dropdown').classList.remove('open');
+  document.getElementById('proj-trigger').classList.remove('open');
+}
+
+document.addEventListener('click', () => closeProjDropdown());
 
 document.getElementById('search').addEventListener('input', e => {
   searchTerm = e.target.value.trim(); renderGraph();
@@ -1135,6 +1396,43 @@ async function runLint() {
     spinner.style.display = 'none';
   }
 }
+
+/* ── MOBILE: touch-follow illumination glow + swipe-to-close ── */
+(function() {
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+
+  if (isTouchDevice) {
+    // Glow segue il tocco — attiva l'effetto illuminazione su mobile
+    document.addEventListener('touchmove', function(e) {
+      const t = e.touches[0];
+      document.documentElement.style.setProperty('--glow-x', t.clientX + 'px');
+      document.documentElement.style.setProperty('--glow-y', t.clientY + 'px');
+    }, { passive: true });
+
+    // Tocco singolo sul grafo: centra il glow nel punto toccato
+    document.getElementById('graph-svg').addEventListener('touchstart', function(e) {
+      const t = e.touches[0];
+      document.documentElement.style.setProperty('--glow-x', t.clientX + 'px');
+      document.documentElement.style.setProperty('--glow-y', t.clientY + 'px');
+    }, { passive: true });
+  }
+
+  // Swipe-down per chiudere il bottom sheet (page-pane) su mobile
+  let _swipeStartY = 0;
+  const phEl = document.getElementById('ph');
+
+  phEl.addEventListener('touchstart', function(e) {
+    _swipeStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  phEl.addEventListener('touchend', function(e) {
+    const delta = e.changedTouches[0].clientY - _swipeStartY;
+    if (delta > 65) {
+      document.getElementById('page-pane').style.display = 'none';
+      nodeGroup.selectAll('g.node').classed('hl', false);
+    }
+  }, { passive: true });
+})();
 </script>
 </body>
 </html>
