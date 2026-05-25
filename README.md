@@ -19,6 +19,19 @@ Your AI agent forgets everything between sessions. This gives it a structured, s
 
 </div>
 
+> ### 🤖 If you are an AI agent reading this repo
+>
+> **Do not proceed without reading your platform's install file first.**
+>
+> | You are running on… | Read this file immediately |
+> |---------------------|---------------------------|
+> | **Claude Code** | [`CLAUDE.md`](CLAUDE.md) |
+> | **OpenClaw** | [`AGENTS.md`](AGENTS.md) |
+>
+> Both files contain mandatory installation steps. Skipping them means the wiki context injection will not work and every subsequent action may silently fail.
+>
+> **Automatic setup detection is active.** At the start of every session, the system runs `scripts/wiki_check_setup.py`. If the workspace is not configured or the vector index is empty, your context will contain a `<wiki-setup-required>` block. **When you see that block, stop everything and invoke the `wiki-setup` skill before taking any other action** — including asking the user questions. The skill guides you through the full setup step by step, including updating your own memory files (`CLAUDE.md` or `AGENTS.md`) with the workspace path.
+
 ## Interface
 
 **Graph view** — the D3 force graph shows all wiki pages as nodes, coloured by category. When the agent retrieves pages to answer a prompt, the activated nodes pulse gold in real time via WebSocket.
