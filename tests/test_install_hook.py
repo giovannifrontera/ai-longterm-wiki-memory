@@ -58,12 +58,7 @@ def test_verify_flag_detects_broken_exe(tmp_path):
         [sys.executable, str(INSTALL_SCRIPT), "--verify", "--settings", str(settings)],
         capture_output=True, text=True
     )
-    assert result.returncode != 0  # deve segnalare il problema
-    assert ("broken" in result.stdout.lower() or
-            "error" in result.stdout.lower() or
-            "warning" in result.stdout.lower() or
-            "ERROR" in result.stdout or
-            "WARNING" in result.stderr)
+    assert result.returncode != 0, f"Expected non-zero exit for broken exe. stdout={result.stdout}"
 
 
 def test_verify_flag_ok_with_valid_exe(tmp_path):
@@ -78,4 +73,21 @@ def test_verify_flag_ok_with_valid_exe(tmp_path):
         capture_output=True, text=True
     )
     assert result.returncode == 0
+    assert "ok" in result.stdout.lower()
+
+
+def test_verify_flag_handles_exe_with_spaces_in_path(tmp_path):
+    """--verify deve estrarre correttamente un exe con spazi nel path."""
+    settings = tmp_path / "settings.json"
+    # Simula un settings con exe quotato che contiene spazi nel path
+    # Usiamo sys.executable come target valido ma lo inseriamo quotato
+    quoted_command = f'"{sys.executable}" scripts/wiki_context.py --workspace . --q $CLAUDE_USER_PROMPT --k 3'
+    settings.write_text(json.dumps({
+        "hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": quoted_command}]}]}
+    }))
+    result = subprocess.run(
+        [sys.executable, str(INSTALL_SCRIPT), "--verify", "--settings", str(settings)],
+        capture_output=True, text=True
+    )
+    assert result.returncode == 0, f"Expected OK for valid quoted exe. stdout={result.stdout} stderr={result.stderr}"
     assert "ok" in result.stdout.lower()

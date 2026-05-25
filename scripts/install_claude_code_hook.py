@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -206,7 +207,6 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.verify:
-        import re
         settings_path = Path(args.settings).resolve() if args.settings else Path.home() / ".claude" / "settings.json"
         if not settings_path.exists():
             print(f"ERROR: settings.json not found at {settings_path}", file=sys.stderr)
@@ -222,8 +222,8 @@ def main() -> None:
                    .get("hooks", [{}])[0]
                    .get("command", "")
         )
-        # Extract the first token of the command (the Python exe)
-        match = re.match(r'^"?([^"\s]+)"?', hooks)
+        # Extract Python exe: try quoted path first (handles spaces), then unquoted
+        match = re.match(r'^"([^"]+)"', hooks) or re.match(r'^(\S+)', hooks)
         exe = match.group(1) if match else ""
         if not exe or "wiki_context" not in hooks:
             print("WARNING: no wiki_context hook found in settings.json")
