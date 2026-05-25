@@ -152,7 +152,10 @@ def test_ingest_pdf_already_in_inbox_does_not_crash(tmp_workspace, monkeypatch):
 
     # Mock scan_inbox per non richiedere lancedb/embeddings
     # scan_inbox è importata localmente dentro cmd_ingest_pdf da wiki_pdf_watcher
-    monkeypatch.setattr("wiki_pdf_watcher.scan_inbox",
+    # Ensure the module is loaded before patching (safe pattern)
+    import importlib
+    wiki_pdf_watcher = importlib.import_module("wiki_pdf_watcher")
+    monkeypatch.setattr(wiki_pdf_watcher, "scan_inbox",
                         lambda ws, cfg: {"processed": 1, "deposited": [], "failed": 0})
 
     class Args:
