@@ -40,6 +40,8 @@ Aggiungi al file di configurazione di OpenClaw:
 }
 ```
 
+> **Su Windows** usa `"pythonExecutable": "py"` come mostrato sopra. Se ottieni `ModuleNotFoundError`, vedi la sezione Troubleshooting per il percorso assoluto.
+
 ### Parametri di configurazione
 
 | Parametro | Obbligatorio | Default | Descrizione |
@@ -104,3 +106,13 @@ Parametri:
 | Parametro | Tipo | Default | Descrizione |
 |-----------|------|---------|-------------|
 | `project` | string | (tutti) | Limita a un progetto specifico (es. `"ricerca"`) |
+
+Output atteso (esempio):
+```json
+{"status": "ok", "op": "process-raw", "promoted": 2, "message": "2 files promoted from raw/"}
+```
+
+Se non ci sono file da promuovere:
+```json
+{"status": "ok", "op": "process-raw", "promoted": 0, "message": "no raw files found"}
+```
