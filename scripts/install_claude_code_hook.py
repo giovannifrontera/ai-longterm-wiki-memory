@@ -15,6 +15,7 @@ The script:
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -107,6 +108,57 @@ def inject_usage_instructions(workspace: Path, dry_run: bool = False) -> None:
     print(f"Usage instructions injected into {claude_md}")
 
 
+def _verify_python(exe: str) -> bool:
+    """Returns True if exe can import lancedb in its context."""
+    try:
+        r = subprocess.run([exe, "-c", "import lancedb"],
+                           capture_output=True, timeout=10)
+        return r.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _resolve_python(explicit: str | None) -> str:
+    """Returns a verified Python exe to write into the hook.
+
+    Order: explicit (if provided and valid) → sys.executable → explicit with warning.
+    If explicit is provided but cannot import lancedb, a WARNING is emitted even if
+    sys.executable is used as fallback.
+    """
+    # If explicit was provided, try it first
+    if explicit:
+        if _verify_python(explicit):
+            return explicit
+        # explicit failed: warn and fall back to sys.executable
+        print(
+            f"WARNING: '{explicit}' cannot import lancedb (FileNotFoundError or missing package).\n"
+            f"Falling back to: {sys.executable}",
+            file=sys.stderr,
+        )
+        if _verify_python(sys.executable):
+            return sys.executable
+        # Neither works
+        print(
+            f"WARNING: no Python tested can import lancedb.\n"
+            f"Writing '{sys.executable}' but the hook may not work.\n"
+            f"Run: {sys.executable} -m pip install -r requirements.txt",
+            file=sys.stderr,
+        )
+        return sys.executable
+
+    # No explicit: try sys.executable, then warn
+    if _verify_python(sys.executable):
+        return sys.executable
+
+    print(
+        f"WARNING: no Python tested can import lancedb.\n"
+        f"Writing '{sys.executable}' but the hook may not work.\n"
+        f"Run: {sys.executable} -m pip install -r requirements.txt",
+        file=sys.stderr,
+    )
+    return sys.executable
+
+
 def detect_python() -> str:
     return "py" if os.name == "nt" else "python3"
 
@@ -145,6 +197,12 @@ def main() -> None:
         help="Print the resulting settings.json without writing it",
     )
     args = parser.parse_args()
+
+    # Determine the Python exe: if user explicitly passed --python (not the default),
+    # use it as the preferred candidate; otherwise let _resolve_python find the best one.
+    default_py = detect_python()
+    explicit_py = args.python if args.python != default_py else None
+    resolved_python = _resolve_python(explicit_py)
 
     # Resolve workspace
     workspace = Path(args.workspace).resolve()
@@ -186,8 +244,9 @@ def main() -> None:
     # Build hook command — use forward slashes for cross-platform compatibility
     script_str = str(script_path).replace("\\", "/")
     workspace_str = str(workspace).replace("\\", "/")
+    python_str = str(resolved_python).replace("\\", "/")
     command = (
-        f'{args.python} "{script_str}"'
+        f'"{python_str}" "{script_str}"'
         f' --workspace "{workspace_str}"'
         f' --q "$CLAUDE_USER_PROMPT"'
         f" --k {args.k}"
@@ -210,6 +269,7 @@ def main() -> None:
 
     if args.dry_run:
         print(f"DRY RUN — would write to: {settings_path}\n")
+        print(f"  python    : {resolved_python}")
         print(json.dumps(settings, indent=2))
         inject_usage_instructions(workspace, dry_run=True)
         return
