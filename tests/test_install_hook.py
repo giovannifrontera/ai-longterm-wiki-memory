@@ -22,7 +22,12 @@ def test_dry_run_writes_absolute_python_path(tmp_path):
     assert result.returncode == 0, result.stderr
     # dry-run deve stampare il comando che verrebbe scritto
     # deve contenere un percorso assoluto, non il semplice "py"
-    assert sys.executable in result.stdout
+    # verifica che il percorso assoluto appaia nella riga "python :" del log
+    assert any(
+        sys.executable in line
+        for line in result.stdout.splitlines()
+        if "python" in line.lower()
+    ), f"sys.executable not found in python log line. stdout:\n{result.stdout}"
 
 
 def test_dry_run_does_not_modify_settings(tmp_path):

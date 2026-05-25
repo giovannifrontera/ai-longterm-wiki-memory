@@ -12,6 +12,8 @@ The script:
 - Injects usage instructions into <workspace>/CLAUDE.md (idempotent via sentinel marker)
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -291,7 +293,7 @@ def main() -> None:
     print(f"Hook installed in {settings_path}")
     print(f"  workspace : {workspace_str}")
     print(f"  script    : {script_str}")
-    print(f"  python    : {args.python}")
+    print(f"  python    : {resolved_python}")
     print(f"  k         : {args.k}")
     print()
     print("Restart Claude Code to activate the hook.")
