@@ -46,7 +46,7 @@ Aggiungi al file di configurazione di OpenClaw:
 |-----------|-------------|---------|-------------|
 | `workspace` | si | — | Path assoluto al workspace wiki |
 | `wikiContextScript` | si | — | Path a `wiki_context.py` |
-| `pythonExecutable` | no | `python` | Eseguibile Python. Usa `py` su Windows |
+| `pythonExecutable` | no | `python` | Eseguibile Python. **Su Windows Store Python usa il percorso assoluto** (vedi Troubleshooting) |
 | `k` | no | 3 | Chunk wiki da iniettare per prompt |
 | `timeoutMs` | no | 15000 | Timeout per `wiki_context.py` in ms |
 
@@ -62,3 +62,45 @@ Ad ogni prompt, OpenClaw esegue `wiki_context.py` via `before_prompt_build`. Lo 
 | OpenClaw | `plugins/wiki-context-plugin/` | `before_prompt_build` |
 
 Entrambi chiamano lo stesso `wiki_context.py` — il comportamento e' identico.
+
+## Troubleshooting
+
+### Windows Store Python: `ModuleNotFoundError: No module named 'pyarrow'`
+
+Il launcher `py` non trova i pacchetti nativi nel contesto di esecuzione di OpenClaw. Sostituisci con il percorso assoluto:
+
+```bash
+# Trova il percorso corretto
+py -c "import sys; print(sys.executable)"
+```
+
+Poi nella config OpenClaw:
+
+```json
+{
+  "pythonExecutable": "C:\\Users\\<utente>\\AppData\\Local\\...\\python.exe"
+}
+```
+
+Puoi copiare il percorso anche dall'output di:
+```bash
+py scripts/install_claude_code_hook.py --workspace <path> --dry-run
+```
+
+### Verificare che il plugin stia funzionando
+
+Attiva `"debug": true` nella configurazione — il plugin scriverà un log in `<workspace>/.wiki-plugin-debug.log` ad ogni prompt. In alternativa usa il tool `wiki_process_raw` dalla chat: se risponde con JSON è segno che il plugin è attivo e Python funziona.
+
+## Tool disponibili dalla chat
+
+### `wiki_process_raw`
+
+Promuove i file estratti dai PDF (in `raw/`) all'indice wiki. Da usare dopo `scan-inbox` o un import PDF in bulk.
+
+Esempio di invocazione in chat:
+> "usa wiki_process_raw per indicizzare i paper che ho appena ingestato"
+
+Parametri:
+| Parametro | Tipo | Default | Descrizione |
+|-----------|------|---------|-------------|
+| `project` | string | (tutti) | Limita a un progetto specifico (es. `"ricerca"`) |
