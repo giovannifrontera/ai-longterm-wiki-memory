@@ -1,7 +1,8 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync, appendFileSync } from "node:fs";
+import { join, dirname } from "node:path";
 
 const execFileAsync = promisify(execFile);
 
@@ -85,7 +86,7 @@ export default definePluginEntry({
         if (!userText.trim()) {
           if (debug) {
             try {
-              writeFileSync(debugLog,
+              appendFileSync(debugLog,
                 `[${new Date().toISOString()}] hook fired but userText empty\nevent keys: ${eventKeys}\n`, "utf-8");
             } catch {}
           }
@@ -114,7 +115,7 @@ export default definePluginEntry({
 
         if (debug) {
           try {
-            writeFileSync(debugLog,
+            appendFileSync(debugLog,
               `[${new Date().toISOString()}]\n` +
               `event keys: ${eventKeys}\n` +
               `userText (${userText.length} chars): ${userText.slice(0, 120)}\n` +
@@ -135,27 +136,30 @@ export default definePluginEntry({
     // Tool: wiki_process_raw — promote raw/ files to the index
     // Exposed so OpenClaw agents can trigger it from chat
     if (typeof (api as Record<string, unknown>).registerTool === "function") {
-      const apiAny = api as unknown as Record<string, (...args: unknown[]) => unknown>;
-      apiAny.registerTool(
-        "wiki_process_raw",
-        async (params: { project?: string }) => {
-          // wiki.py lives next to wiki_context.py in the same scripts/ directory
-          const wikiPy = wikiContextScript.replace(/wiki_context\.py$/, "wiki.py");
-          const args = ["process-raw", "--workspace", workspace];
-          if (params?.project) {
-            args.push("--project", params.project);
+      try {
+        (api as unknown as Record<string, (...args: unknown[]) => unknown>).registerTool(
+          "wiki_process_raw",
+          async (params: { project?: string }) => {
+            // wiki.py lives next to wiki_context.py in the same scripts/ directory
+            const wikiPy = join(dirname(wikiContextScript), "wiki.py");
+            const args = ["process-raw", "--workspace", workspace];
+            if (params?.project) {
+              args.push("--project", params.project);
+            }
+            try {
+              const { stdout } = await execFileAsync(python, [wikiPy, ...args], {
+                encoding: "utf-8",
+                timeout: 120_000,
+              });
+              return JSON.parse(stdout);
+            } catch (err) {
+              return { status: "error", message: String(err) };
+            }
           }
-          try {
-            const { stdout } = await execFileAsync(python, [wikiPy, ...args], {
-              encoding: "utf-8",
-              timeout: 120_000,
-            });
-            return JSON.parse(stdout);
-          } catch (err) {
-            return { status: "error", message: String(err) };
-          }
-        }
-      );
+        );
+      } catch (e) {
+        console.warn("[wiki-context-plugin] registerTool failed:", e);
+      }
     }
   },
 });
