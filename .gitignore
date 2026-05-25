@@ -5,6 +5,15 @@ memory/lancedb/
 *.tmp
 .wiki-lock
 
+# local wiki data (never commit — contains personal research content)
+wiki/
+wiki-works/
+pdf-inbox/
+memory/
+wiki-session.md
+.wiki-behavior-log.jsonl
+.wiki-query-log.jsonl
+
 # plugin build artifacts
 plugins/wiki-context-plugin/node_modules/
 plugins/wiki-context-plugin/dist/
