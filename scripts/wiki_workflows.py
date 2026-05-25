@@ -402,22 +402,22 @@ def cmd_process_raw(args, cfg):
     pages_arg = ",".join(str(t) for _, t in tmp_paths)
     log_msg = f"process-raw | {len(tmp_paths)} files promoted from raw/"
 
-    class _IngestArgs:
-        pages = pages_arg
-        workspace = str(args.workspace)
-        log = log_msg
+    from types import SimpleNamespace
+    _ingest_args = SimpleNamespace(pages=pages_arg, workspace=str(args.workspace), log=log_msg)
 
     try:
-        cmd_ingest(_IngestArgs(), cfg)
+        cmd_ingest(_ingest_args, cfg)
         for raw_file, _ in tmp_paths:
             try:
                 raw_file.unlink()
             except OSError:
                 pass
-    except SystemExit:
+    except BaseException:
         for _, tmp_file in tmp_paths:
-            if tmp_file.exists():
+            try:
                 tmp_file.unlink()
+            except OSError:
+                pass
         raise
 
 
