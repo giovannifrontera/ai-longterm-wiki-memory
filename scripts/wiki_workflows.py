@@ -367,6 +367,60 @@ def cmd_ingest_pdf(args, cfg):
     ok(result)
 
 
+def cmd_process_raw(args, cfg):
+    """Promote all files in */raw/ to the index via ingest.
+
+    Useful after scan-inbox bulk import. Raw files are deleted only after
+    a successful ingest call.
+    """
+    workspace = Path(args.workspace)
+    project_filter = getattr(args, "project", None)
+
+    search_root = workspace / "wiki-works"
+    if not search_root.exists():
+        ok({"op": "process-raw", "promoted": 0, "message": "no raw files found"})
+        return
+
+    raw_files: list[Path] = []
+    for raw_dir in search_root.rglob("raw"):
+        if not raw_dir.is_dir():
+            continue
+        if project_filter and raw_dir.parent.name != project_filter:
+            continue
+        raw_files.extend(raw_dir.glob("*.md"))
+
+    if not raw_files:
+        ok({"op": "process-raw", "promoted": 0, "message": "no raw files found"})
+        return
+
+    tmp_paths: list[tuple[Path, Path]] = []
+    for raw_file in raw_files:
+        tmp_dest = raw_file.parent.parent / (raw_file.stem + ".md.tmp")
+        shutil.copy2(str(raw_file), str(tmp_dest))
+        tmp_paths.append((raw_file, tmp_dest))
+
+    pages_arg = ",".join(str(t) for _, t in tmp_paths)
+    log_msg = f"process-raw | {len(tmp_paths)} files promoted from raw/"
+
+    class _IngestArgs:
+        pages = pages_arg
+        workspace = str(args.workspace)
+        log = log_msg
+
+    try:
+        cmd_ingest(_IngestArgs(), cfg)
+        for raw_file, _ in tmp_paths:
+            try:
+                raw_file.unlink()
+            except OSError:
+                pass
+    except SystemExit:
+        for _, tmp_file in tmp_paths:
+            if tmp_file.exists():
+                tmp_file.unlink()
+        raise
+
+
 def _write_session(workspace: str, op: str, status: str, detail: dict,
                    project: str = "", project_path: str = "") -> None:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")

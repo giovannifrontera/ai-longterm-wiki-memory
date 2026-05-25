@@ -124,6 +124,12 @@ def main():
     p_ingest_pdf.add_argument("--workspace", required=True)
     p_ingest_pdf.add_argument("--file", required=True)
 
+    p_process_raw = sub.add_parser("process-raw",
+        help="Promote files in */raw/ to the index (use after bulk PDF import)")
+    p_process_raw.add_argument("--workspace", required=True)
+    p_process_raw.add_argument("--project", default=None,
+        help="Limit to a specific project (e.g. 'ricerca')")
+
     p_serve = sub.add_parser("serve")
     p_serve.add_argument("--workspace", required=True)
     p_serve.add_argument("--host", default="127.0.0.1")
@@ -156,7 +162,8 @@ def dispatch(args, cfg):
     from wiki_workflows import (cmd_ingest, cmd_query, cmd_lint, cmd_index,
                                 cmd_rebuild, cmd_session_update,
                                 cmd_scan_inbox, cmd_ingest_pdf, cmd_serve,
-                                cmd_behavior_log, cmd_self_reflect)
+                                cmd_behavior_log, cmd_self_reflect,
+                                cmd_process_raw)
     commands = {
         "ingest": cmd_ingest,
         "query": cmd_query,
@@ -169,6 +176,7 @@ def dispatch(args, cfg):
         "serve": cmd_serve,
         "behavior-log": cmd_behavior_log,
         "self-reflect": cmd_self_reflect,
+        "process-raw": cmd_process_raw,
     }
     commands[args.command](args, cfg)
 

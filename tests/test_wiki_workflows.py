@@ -165,3 +165,53 @@ def test_ingest_pdf_already_in_inbox_does_not_crash(tmp_workspace, monkeypatch):
     cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
     # Non deve sollevare eccezioni
     cmd_ingest_pdf(Args(), cfg)
+
+
+def test_process_raw_promotes_files_to_index(tmp_workspace, monkeypatch):
+    """process-raw deve spostare i file da raw/ all'indice via ingest."""
+    from wiki_workflows import cmd_process_raw
+
+    # Crea struttura raw
+    raw_dir = tmp_workspace / "wiki-works" / "ricerca" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_file = raw_dir / "paper_test.md"
+    raw_file.write_text("# Test paper\nContenuto di test.", encoding="utf-8")
+
+    ingest_calls = []
+
+    def mock_cmd_ingest(args, cfg):
+        ingest_calls.append(args.pages)
+        # Simula spostamento file: rinomina .tmp -> .md
+        for p in args.pages.split(","):
+            p = p.strip()
+            final = p.replace(".md.tmp", ".md")
+            Path(p).rename(final)
+
+    monkeypatch.setattr("wiki_workflows.cmd_ingest", mock_cmd_ingest)
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+
+    class Args:
+        workspace = str(tmp_workspace)
+        project = None
+
+    cmd_process_raw(Args(), cfg)
+
+    assert len(ingest_calls) == 1
+    assert "paper_test.md.tmp" in ingest_calls[0]
+    assert not raw_file.exists()
+    final = tmp_workspace / "wiki-works" / "ricerca" / "paper_test.md"
+    assert final.exists()
+
+
+def test_process_raw_no_files_is_a_noop(tmp_workspace):
+    """Se non ci sono file in raw/, process-raw non deve crashare."""
+    from wiki_workflows import cmd_process_raw
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+
+    class Args:
+        workspace = str(tmp_workspace)
+        project = None
+
+    # Non deve sollevare eccezioni
+    cmd_process_raw(Args(), cfg)
