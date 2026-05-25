@@ -37,6 +37,21 @@ py scripts/install_claude_code_hook.py --workspace /path --dry-run
 
 Riavvia Claude Code dopo l'installazione per attivare l'hook.
 
+### Diagnose an existing installation
+
+If you suspect the hook is not working (no `<wiki-context>` in prompts):
+
+```bash
+py scripts/install_claude_code_hook.py --verify
+```
+
+Expected output if working correctly:
+```
+OK: 'C:\Users\...\python.exe' can import lancedb
+```
+
+If you get `ERROR`, re-run the install without `--verify` — the script will detect and write the correct exe automatically.
+
 ## Come funziona
 
 Ad ogni prompt, Claude Code esegue `wiki_context.py` in background. Lo script:

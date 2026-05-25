@@ -171,7 +171,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--workspace",
-        required=True,
+        default=None,
         help="Absolute path to the wiki workspace (directory containing wiki.config.json)",
     )
     parser.add_argument(
@@ -198,7 +198,46 @@ def main() -> None:
         action="store_true",
         help="Print the resulting settings.json without writing it",
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Read the existing hook from settings.json and verify the Python exe works",
+    )
     args = parser.parse_args()
+
+    if args.verify:
+        import re
+        settings_path = Path(args.settings).resolve() if args.settings else Path.home() / ".claude" / "settings.json"
+        if not settings_path.exists():
+            print(f"ERROR: settings.json not found at {settings_path}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            content = json.loads(settings_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            print(f"ERROR: cannot parse {settings_path}: {e}", file=sys.stderr)
+            sys.exit(1)
+        hooks = (
+            content.get("hooks", {})
+                   .get("UserPromptSubmit", [{}])[0]
+                   .get("hooks", [{}])[0]
+                   .get("command", "")
+        )
+        # Extract the first token of the command (the Python exe)
+        match = re.match(r'^"?([^"\s]+)"?', hooks)
+        exe = match.group(1) if match else ""
+        if not exe or "wiki_context" not in hooks:
+            print("WARNING: no wiki_context hook found in settings.json")
+            sys.exit(1)
+        if _verify_python(exe):
+            print(f"OK: '{exe}' can import lancedb")
+            sys.exit(0)
+        else:
+            print(f"ERROR: '{exe}' cannot import lancedb — re-run install without --verify to repair")
+            sys.exit(2)
+
+    # --workspace is required when not using --verify
+    if not args.workspace:
+        parser.error("the following arguments are required: --workspace")
 
     # Determine the Python exe: if user explicitly passed --python (not the default),
     # use it as the preferred candidate; otherwise let _resolve_python find the best one.

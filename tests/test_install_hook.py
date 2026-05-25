@@ -45,3 +45,37 @@ def test_invalid_python_exe_triggers_warning_not_crash(tmp_path):
     result, _ = _run(tmp_path, ["--python", "/nonexistent/python"])
     assert result.returncode == 0  # non deve crashare
     assert "WARNING" in result.stderr or "warning" in result.stderr.lower()
+
+
+def test_verify_flag_detects_broken_exe(tmp_path):
+    """--verify deve segnalare un exe rotto leggendo settings.json."""
+    settings = tmp_path / "settings.json"
+    broken_hook_command = "/nonexistent/python scripts/wiki_context.py --workspace . --q $CLAUDE_USER_PROMPT --k 3"
+    settings.write_text(json.dumps({
+        "hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": broken_hook_command}]}]}
+    }))
+    result = subprocess.run(
+        [sys.executable, str(INSTALL_SCRIPT), "--verify", "--settings", str(settings)],
+        capture_output=True, text=True
+    )
+    assert result.returncode != 0  # deve segnalare il problema
+    assert ("broken" in result.stdout.lower() or
+            "error" in result.stdout.lower() or
+            "warning" in result.stdout.lower() or
+            "ERROR" in result.stdout or
+            "WARNING" in result.stderr)
+
+
+def test_verify_flag_ok_with_valid_exe(tmp_path):
+    """--verify deve confermare ok se l'exe nel hook è quello corrente."""
+    settings = tmp_path / "settings.json"
+    valid_command = f'"{sys.executable}" scripts/wiki_context.py --workspace . --q $CLAUDE_USER_PROMPT --k 3'
+    settings.write_text(json.dumps({
+        "hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": valid_command}]}]}
+    }))
+    result = subprocess.run(
+        [sys.executable, str(INSTALL_SCRIPT), "--verify", "--settings", str(settings)],
+        capture_output=True, text=True
+    )
+    assert result.returncode == 0
+    assert "ok" in result.stdout.lower()
