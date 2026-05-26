@@ -17,7 +17,11 @@ import fnmatch
 import json
 import os
 import sys
+import warnings
 from datetime import datetime
+
+# Silence all Python warnings to stdout — this is a hook, stdout must stay clean
+warnings.filterwarnings("ignore")
 
 
 def load_config(workspace: str) -> dict | None:
@@ -66,17 +70,25 @@ def _run(args):
 
     try:
         import lancedb
+        os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+        os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         from sentence_transformers import SentenceTransformer
+        import logging
+        logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
     except ImportError:
         return
 
     db = lancedb.connect(lancedb_path)
-    existing = db.table_names() if hasattr(db, "table_names") else db.list_tables()
+    table_result = db.list_tables()
+    existing = getattr(table_result, "tables", None) or list(table_result)
     if "wiki_pages" not in existing:
         return
 
     table = db.open_table("wiki_pages")
-    model = SentenceTransformer(cfg["lancedb"]["embedding_model"])
+    model = SentenceTransformer(cfg["lancedb"]["embedding_model"], device="cpu")
     vector = model.encode(args.q, normalize_embeddings=True).tolist()
 
     # Over-fetch per deduplicare per pagina, poi prendere i top-k
