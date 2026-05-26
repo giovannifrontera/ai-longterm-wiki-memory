@@ -82,6 +82,41 @@ wiki.py scan-inbox --workspace <workspace>
 """
 
 
+def update_config_workspace(workspace: Path, dry_run: bool = False) -> None:
+    """Update the workspace field in wiki.config.json if it is still a placeholder."""
+    config_path = workspace / "wiki.config.json"
+    if not config_path.exists():
+        return
+    try:
+        cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+
+    workspace_str = str(workspace).replace("\\", "/")
+    current = cfg.get("workspace", "")
+    if current == workspace_str:
+        return  # already correct
+
+    cfg["workspace"] = workspace_str
+    if dry_run:
+        print(f"DRY RUN — would update wiki.config.json workspace: {workspace_str}")
+        return
+
+    fd, tmp_path = tempfile.mkstemp(dir=workspace, prefix=".wiki_config.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(tmp_path, config_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    print(f"wiki.config.json updated: workspace = {workspace_str}")
+
+
 def inject_usage_instructions(workspace: Path, dry_run: bool = False) -> None:
     claude_md = workspace / "CLAUDE.md"
     if claude_md.exists():
@@ -263,6 +298,8 @@ def main() -> None:
     if not (workspace / "wiki.config.json").exists():
         print(f"WARNING: wiki.config.json not found in {workspace}.", file=sys.stderr)
         print("The hook will fail silently until wiki.config.json is created.", file=sys.stderr)
+    else:
+        update_config_workspace(workspace, dry_run=args.dry_run)
 
     # Resolve script path
     if args.script:

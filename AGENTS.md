@@ -39,10 +39,27 @@ Restart OpenClaw after installation.
 
 ## First-time wiki setup
 
-If the workspace does not exist yet, create the directory structure manually and add a `wiki.config.json`:
+### Workspace = repo directory (most common)
+
+If you are using the repo root as your workspace, `wiki.config.json` already exists with placeholder values.
+Run the install script — it will update the `workspace` field automatically:
 
 ```
-mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works
+py scripts/install_claude_code_hook.py --workspace /absolute/path/to/this/repo
+```
+
+Then initialise LanceDB:
+
+```
+py scripts/wiki.py rebuild --workspace /absolute/path/to/this/repo
+```
+
+### Workspace = separate directory
+
+Create the directory structure and a `wiki.config.json`:
+
+```
+mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works /path/to/workspace/memory
 ```
 
 Full `wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
@@ -67,10 +84,11 @@ Full `wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
 }
 ```
 
-Then index the workspace to initialise the LanceDB table:
+Then run the install script (it will also update the `workspace` field) and initialise LanceDB:
 
 ```
-py scripts/wiki.py index --workspace /path/to/workspace
+py scripts/install_claude_code_hook.py --workspace /path/to/workspace
+py scripts/wiki.py rebuild --workspace /path/to/workspace
 ```
 
 There is no `wiki.py init` command — the available commands are:

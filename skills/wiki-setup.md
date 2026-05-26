@@ -26,11 +26,15 @@ py -c "import lancedb, pyarrow, sentence_transformers; print('OK')"
 
 If this fails: install Python 3.10+ and retry. Do not proceed until it prints `OK`.
 
-### Step CC-2: Create or verify wiki.config.json
+### Step CC-2: Prepare the workspace directory and wiki.config.json
 
 The workspace is the folder that will contain `wiki/`, `wiki-works/`, `memory/`.
 
-If it does not exist yet:
+**If you are using the repo directory itself as your workspace** (most common case):
+- `wiki.config.json` already exists in the repo root with placeholder values.
+- Skip to CC-3 — the install script will update it automatically.
+
+**If your workspace is a different directory** (separate from the repo):
 ```bash
 mkdir -p <WORKSPACE>/wiki <WORKSPACE>/wiki-works <WORKSPACE>/memory
 ```
@@ -63,12 +67,16 @@ Create `<WORKSPACE>/wiki.config.json` with this content (replace `<WORKSPACE>` w
 py scripts/install_claude_code_hook.py --workspace <WORKSPACE>
 ```
 
-Verify there are no WARNING messages in the output. If you see `WARNING: no Python...`:
+This command also updates the `workspace` field in `wiki.config.json` to the absolute path automatically.
+
+Verify there are no WARNING messages in the output. If you see `WARNING: no Python...` or `ERROR: ... cannot import lancedb`:
 ```bash
 py -c "import sys; print(sys.executable)"
 # Copy the path and use it with --python
 py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --python <PATH>
 ```
+
+> **Note for Windows Store Python users:** if `py` resolves to a Python that cannot import `lancedb`, always pass `--python` with the absolute path. Use `py -c "import sys; print(sys.executable)"` to find the right one.
 
 ### Step CC-4: Initialize LanceDB
 
