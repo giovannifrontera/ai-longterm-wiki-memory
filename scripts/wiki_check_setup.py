@@ -47,7 +47,8 @@ def check(workspace: str) -> list[str]:
             try:
                 import lancedb
                 db = lancedb.connect(str(ldb_path))
-                tables = db.list_tables()
+                table_result = db.list_tables()
+                tables = getattr(table_result, "tables", None) or list(table_result)
                 if "wiki_pages" not in tables:
                     issues.append("wiki_pages table not found — run: wiki.py rebuild")
                 elif db.open_table("wiki_pages").count_rows() == 0:
