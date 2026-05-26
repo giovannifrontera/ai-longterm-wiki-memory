@@ -5,6 +5,9 @@ description: AI Agent wiki protocol v3 — three-layer brain, autonomous promoti
 
 # Wiki Core — AI Agent Protocol v3
 
+> **This is a local skill file, not a Claude Code plugin.**
+> Access it with `Read skills/wiki-core.md` — do NOT call `Skill("wiki-core")`.
+
 ## §architecture — Three layers, one brain
 
 All layers are indexed in the same LanceDB vector space. The agent accesses everything through semantic search — directory structure is organisational, not a barrier.
@@ -145,10 +148,18 @@ For broken links and duplicate filenames: present options to the user.
 
 ## §pdf-inbox — PDF ingestion
 
+Text extraction is done via **pdfplumber** (bundled in `wiki_pdf_watcher.py`).
+Do NOT extract PDF text manually — always use the commands below.
+
 1. `py scripts/wiki.py ingest-pdf --workspace <path> --file <path|url>`
-2. For each path in `deposited`, read the file (raw extracted text)
-3. Structure the raw text into `.tmp` pages in `wiki-works/<project>/`
-4. Call `wiki.py ingest`
+2. For each path in `deposited`, **read** the raw file (extracted text)
+3. **Write** structured `.tmp` pages in `wiki-works/<project>/` (see §ingest Phase B)
+4. Call `wiki.py ingest --workspace <path> --pages <file.tmp,...>`
+
+> **WARNING — process-raw ≠ ingest:**
+> `wiki.py process-raw` only re-indexes files already in `raw/` — it does NOT
+> create structured wiki pages. It is for bulk re-indexing only.
+> Always follow the full §ingest workflow for new knowledge.
 
 ## §workspace — Project selection
 

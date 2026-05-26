@@ -6,6 +6,9 @@ type: rigid
 
 # Wiki Setup — Guided Installation
 
+> **This is a local skill file, not a Claude Code plugin.**
+> Access it with `Read skills/wiki-setup.md` — do NOT call `Skill("wiki-setup")`.
+
 **IMPORTANT: This is a rigid skill. Execute every step in the order shown. Do not skip or reorder.**
 
 ## Pre-check: identify your platform
