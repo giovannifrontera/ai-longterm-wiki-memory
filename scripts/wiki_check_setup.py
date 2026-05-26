@@ -44,19 +44,25 @@ def check(workspace: str) -> list[str]:
         if not ldb_path.exists():
             issues.append(f"LanceDB not found at {ldb_path} — run: wiki.py rebuild")
         else:
+            # Separate the import check from the connection check so that
+            # ImportErrors raised internally by lancedb (e.g. optional Unix
+            # modules like posix/fcntl on Windows) are not mistaken for a
+            # missing lancedb installation.
             try:
                 import lancedb
-                db = lancedb.connect(str(ldb_path))
-                table_result = db.list_tables()
-                tables = getattr(table_result, "tables", None) or list(table_result)
-                if "wiki_pages" not in tables:
-                    issues.append("wiki_pages table not found — run: wiki.py rebuild")
-                elif db.open_table("wiki_pages").count_rows() == 0:
-                    issues.append("wiki_pages is empty — run: wiki.py rebuild or process-raw")
             except ImportError:
                 issues.append("lancedb not installed — run: pip install -r requirements.txt")
-            except Exception as e:
-                issues.append(f"LanceDB error: {e}")
+            else:
+                try:
+                    db = lancedb.connect(str(ldb_path))
+                    table_result = db.list_tables()
+                    tables = getattr(table_result, "tables", None) or list(table_result)
+                    if "wiki_pages" not in tables:
+                        issues.append("wiki_pages table not found — run: wiki.py rebuild")
+                    elif db.open_table("wiki_pages").count_rows() == 0:
+                        issues.append("wiki_pages is empty — run: wiki.py rebuild or process-raw")
+                except Exception as e:
+                    issues.append(f"LanceDB error: {e}")
 
     return issues
 
