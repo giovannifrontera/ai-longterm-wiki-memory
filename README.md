@@ -6,7 +6,7 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-3.1.0-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.1.1-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
@@ -622,6 +622,18 @@ Every command outputs JSON to stdout:
 ---
 
 ## Changelog
+
+### v3.1.1 — 2026-05-26
+
+**Windows: fix `CLAUDE_USER_PROMPT` not received by hook**
+
+- **fix: `$CLAUDE_USER_PROMPT` shell expansion on Windows** — On Windows, Claude Code runs hook commands via PowerShell, which expands `$CLAUDE_USER_PROMPT` as a PowerShell variable (always empty) before the subprocess starts. As a result, every prompt was searched with an empty query, returning the same 3 irrelevant pages. Fixed by removing `--q "$CLAUDE_USER_PROMPT"` from the hook command entirely; `wiki_context.py` now reads the query directly from `os.environ["CLAUDE_USER_PROMPT"]`, which Claude Code sets on the subprocess environment before execution.
+- **fix: stdout encoding on Windows** — Added `sys.stdout.reconfigure(encoding="utf-8")` at startup. Python on Windows defaults to CP1252, which could cause Claude Code to silently discard the hook output.
+- **fix: empty-query early return** — If both `--q` and the `CLAUDE_USER_PROMPT` env var are empty, the script exits immediately without running an embedding search, eliminating useless log entries.
+- **refactor: `--q` now optional** — `--q` defaults to `""` instead of `required=True`. The env var is the primary source; `--q` remains supported for direct invocations (OpenClaw plugin, manual testing).
+- **fix: `install_claude_code_hook.py`** — Updated generated hook command to omit `--q "$CLAUDE_USER_PROMPT"`. Future reinstalls get the corrected command automatically.
+
+**Not affected:** OpenClaw plugin (passes `--q userText` via `execFile`, no shell involved). Claude Code on Linux/macOS (reads same env var; shell expansion also still works via `--q` if used directly).
 
 ### v3.1.0 — 2026-05-25
 

@@ -39,18 +39,28 @@ def load_config(workspace: str) -> dict | None:
 
 
 def main():
+    # Windows: stdout defaults to CP1252 — force UTF-8 so Claude Code can read the output
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(
         description="Inietta contesto wiki prima di ogni prompt."
     )
     parser.add_argument("--workspace", required=True,
                         help="Path al workspace (deve contenere wiki.config.json)")
-    parser.add_argument("--q", required=True,
-                        help="Testo della query (il prompt utente)")
+    parser.add_argument("--q", default="",
+                        help="Testo della query (il prompt utente); se omesso legge CLAUDE_USER_PROMPT")
     parser.add_argument("--k", type=int, default=3,
                         help="Numero di pagine da restituire (default: 3)")
     parser.add_argument("--max-chars", type=int, default=600, dest="max_chars",
                         help="Caratteri massimi per chunk (default: 600)")
     args = parser.parse_args()
+
+    # Shell expansion of $CLAUDE_USER_PROMPT is unreliable on Windows (PowerShell
+    # treats it as a PS variable, not an env var). Always prefer the env var set
+    # by Claude Code on the subprocess environment.
+    if not args.q.strip():
+        args.q = os.environ.get("CLAUDE_USER_PROMPT", "").strip()
 
     try:
         _run(args)
@@ -60,6 +70,9 @@ def main():
 
 
 def _run(args):
+    if not args.q.strip():
+        return  # nothing to search — avoid embedding an empty string
+
     cfg = load_config(args.workspace)
     if not cfg:
         return

@@ -333,10 +333,12 @@ def main() -> None:
     script_str = str(script_path).replace("\\", "/")
     workspace_str = str(workspace).replace("\\", "/")
     python_str = str(resolved_python).replace("\\", "/")
+    # $CLAUDE_USER_PROMPT is NOT passed on the command line: on Windows, PowerShell
+    # expands it as a PS variable (empty) before Claude Code sets the env var.
+    # wiki_context.py reads CLAUDE_USER_PROMPT directly from os.environ instead.
     command = (
         f'"{python_str}" "{script_str}"'
         f' --workspace "{workspace_str}"'
-        f' --q "$CLAUDE_USER_PROMPT"'
         f" --k {args.k}"
     )
 

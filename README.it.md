@@ -1,6 +1,6 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-3.0.1-informational)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/versione-3.1.1-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-106%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
