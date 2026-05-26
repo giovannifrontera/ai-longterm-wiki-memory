@@ -1,68 +1,131 @@
 # AGENTS.md — ai-wiki-system
 
-> **MUST — Setup check (read before anything else)**
-> If your context contains a `<wiki-setup-required>` block, invoke the `wiki-setup` skill **immediately** — before asking the user questions, before running any command, before any other action. The skill will guide you through the full setup step by step.
+> ## ⛔ STOP — READ THIS BEFORE ANYTHING ELSE
+>
+> **Every session, before any action:**
+> 1. `Read wiki-session.md` — check current status
+> 2. `Read skills/wiki-core.md` — load the full protocol
+>
+> These are local files, not plugins. Use the **Read tool**, not a Skill/Tool call.
+> If you see `<wiki-briefing>` in your context, it already contains the summary —
+> but you must still Read skills/wiki-core.md for the full protocol.
+>
+> **If you see `<wiki-setup-required>`:**
+> Do NOT call any skill or tool named "wiki-setup" — it is not a registered plugin.
+> Instead: `Read skills/wiki-setup.md` and follow every step in order.
+
+---
 
 This repo provides a long-term wiki memory system for AI agents.
 It injects semantically relevant wiki pages into every prompt automatically.
 
 ## Installation
 
-### If you are a Claude Code agent
+### Claude Code agent
 
-Run from the repo root:
-
-```
-py scripts/install_claude_code_hook.py --workspace /absolute/path/to/your/workspace
+```bash
+py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
 ```
 
-The workspace is the directory that contains `wiki.config.json`.
-The script installs a `UserPromptSubmit` hook in `.claude/settings.json` and skips silently if already present.
-Restart Claude Code after installation.
+> **Windows note:** if `py` resolves to a Python that cannot import `lancedb`,
+> pass the explicit path: `--python <absolute-python-path>`
+> Find it with: `py -c "import sys; print(sys.executable)"`
 
-### If you are an OpenClaw agent
+### OpenClaw agent
 
-Run from the repo root:
-
-```
-py scripts/setup_openclaw.py --workspace /absolute/path/to/your/workspace
+```bash
+py scripts/setup_openclaw.py --workspace /absolute/path/to/workspace
 ```
 
-The script auto-detects the OpenClaw config file and injects the plugin entry.
-If auto-detection fails, pass the config path explicitly:
+If auto-detection fails: add `--config /path/to/openclaw/config.json`
 
-```
-py scripts/setup_openclaw.py --workspace /path/to/workspace --config /path/to/openclaw/config.json
+Restart the agent after installation.
+
+## PDF ingestion — CRITICAL workflow
+
+Text extraction uses **pdfplumber** (bundled in `wiki_pdf_watcher.py`).
+
+```bash
+wiki.py ingest-pdf --workspace <path> --file <path|url>
 ```
 
-Restart OpenClaw after installation.
+This deposits extracted raw text into `wiki-works/<project>/raw/`.
+
+**After `ingest-pdf`, the agent must:**
+1. Read each deposited file in `raw/`
+2. Write structured `.tmp` pages (see `skills/wiki-core.md §ingest`)
+3. Call `wiki.py ingest --workspace <path> --pages <file.tmp>`
+
+## process-raw vs ingest — DO NOT CONFUSE
+
+| Command | When to use |
+|---------|-------------|
+| `wiki.py ingest` | Always — agent writes `.tmp` pages, then calls this |
+| `wiki.py process-raw` | ONLY for bulk re-indexing of raw files already in `raw/` — does NOT create structured wiki pages |
+
+**Never use `process-raw` as a shortcut for the INGEST workflow.**
+
+## Architecture (v3) — three layers, one brain
+
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per topic: concepts, research, entities | INGEST workflow |
+| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously | Agent (autonomous) |
+| **Identity** | `wiki/identity/` | Values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
+
+Promote a page from `wiki-works/` to `wiki/` autonomously when relevant in ≥2 topics and retrieved in ≥3 queries.
+
+## Behavioral feedback
+
+When the user corrects behavior:
+```bash
+wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
+```
+At end of session, run autonomously if ≥1 correction received:
+```bash
+wiki.py self-reflect --workspace <path>
+```
+
+## Wiki context injection
+
+Every prompt arrives preceded by:
+```
+<wiki-context>
+Pre-loaded wiki context (top 3 pages by semantic relevance):
+### wiki/concepts/rag.md  [relevance: 0.91]
+[page content...]
+</wiki-context>
+```
+
+Use this directly. Do not re-run `wiki.py query` for the same prompt.
+If all relevance scores < 0.4 → wiki has no relevant knowledge, proceed normally.
+
+## Dashboard
+
+```bash
+wiki.py serve --workspace <path> [--no-auth]
+```
+
+Opens at `http://localhost:7331`. Tabs: **Graf** (page graph) and **Stats**.
 
 ## First-time wiki setup
 
 ### Workspace = repo directory (most common)
 
-If you are using the repo root as your workspace, `wiki.config.json` already exists with placeholder values.
-Run the install script — it will update the `workspace` field automatically:
+`wiki.config.json` already exists with placeholder values. Run:
 
-```
+```bash
 py scripts/install_claude_code_hook.py --workspace /absolute/path/to/this/repo
-```
-
-Then initialise LanceDB:
-
-```
 py scripts/wiki.py rebuild --workspace /absolute/path/to/this/repo
 ```
 
 ### Workspace = separate directory
 
-Create the directory structure and a `wiki.config.json`:
-
-```
+```bash
 mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works /path/to/workspace/memory
 ```
 
-Full `wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
+`wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
 ```json
 {
   "workspace": "<WORKSPACE>",
@@ -84,106 +147,11 @@ Full `wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
 }
 ```
 
-Then run the install script (it will also update the `workspace` field) and initialise LanceDB:
-
-```
+Then:
+```bash
 py scripts/install_claude_code_hook.py --workspace /path/to/workspace
 py scripts/wiki.py rebuild --workspace /path/to/workspace
 ```
 
-There is no `wiki.py init` command — the available commands are:
-`ingest`, `query`, `lint`, `index`, `rebuild`, `session-update`, `scan-inbox`, `ingest-pdf`, `serve`, `behavior-log`, `self-reflect`
-
-## Usage (once installed)
-
-### Session start
-
-At the start of every session:
-1. Read `wiki-session.md` for the current wiki context
-2. Before any wiki operation, re-read `skills/wiki-core.md` to verify the protocol
-
-The wiki is your persistent brain. Use it actively:
-- Every relevant piece of knowledge should be ingested into the wiki
-- Every complex question should first be checked against the wiki
-- Run LINT proactively every 2 weeks
-
-Never write directly into the `wiki/` or `wiki-works/` directories.
-Always use `wiki.py` for any write operation.
-
-### Architecture (v3) — three layers, one brain
-
-All layers are indexed together in LanceDB. The agent accesses everything through semantic search.
-
-| Layer | Directory | Contents | Who writes |
-|-------|-----------|----------|------------|
-| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per topic: concepts, research, entities | INGEST workflow |
-| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously | Agent (autonomous) |
-| **Identity** | `wiki/identity/` | Values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
-
-Promote a page from `wiki-works/` to `wiki/` autonomously when it is relevant in ≥2 topics and retrieved in ≥3 queries. Use `wiki.py ingest` targeting `wiki/concepts/<slug>.md.tmp`.
-
-### Behavioral feedback (v3)
-
-When the user corrects your behavior ("stop doing X", "always do Y", "never do Z"):
-
-1. Log the correction:
-   ```
-   wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
-   ```
-2. At end of session, run self-reflection:
-   ```
-   wiki.py self-reflect --workspace <path>
-   ```
-   This reads `.wiki-behavior-log.jsonl`, detects recurring patterns (≥3 occurrences), and autonomously updates `wiki/identity/`. Run it without asking the user.
-
-### Lint — semantic duplicates (v3)
-
-`wiki.py lint --full` now reports `semantic_duplicate` issues. Handle them:
-- `action: auto_merge` (similarity ≥ 0.90): merge the two pages, ingest the merged version, delete originals
-- `action: warn` (0.75–0.90): show the user and ask whether to merge
-
-### Wiki context injection
-
-When context injection is active, every prompt arrives preceded by a block like:
-
-```
-<wiki-context>
-Pre-loaded wiki context (top 3 pages by semantic relevance):
-
-### wiki/concepts/rag.md  [relevance: 0.91]
-[page content...]
-</wiki-context>
-```
-
-Use this block directly as the starting context — it is already the most relevant knowledge for this prompt. Do not run `wiki.py query` again for the same query; that would be redundant. If the block is absent, proceed normally with `skills/wiki-core.md`.
-
-### Wiki dashboard (v2.2+)
-
-When the server is running (`wiki.py serve`), a `[Stats]` tab is available at `http://localhost:7331`.
-
-Check there for: embedding coverage, stale pages, top queried pages, lint status.
-
-REST endpoints (auth-protected):
-```
-GET  /api/stats   → full observability snapshot as JSON
-POST /api/lint    → trigger wiki.py lint --full (returns 409 if already running)
-```
-
-Auto-lint: add to `wiki.config.json` to lint automatically every N hours:
-```json
-{ "frontend": { "lint_interval_hours": 24 } }
-```
-
-### PDF inbox
-
-When the user sends a PDF file in chat or provides a file path/URL:
-```
-wiki.py ingest-pdf --workspace <workspace> --file <path|url>
-```
-
-To process all PDFs added to the inbox since the last session:
-```
-wiki.py scan-inbox --workspace <workspace>
-```
-
-Files in `wiki-works/<project>/raw/` with `source: pdf` are raw extracted text — structure them into `.tmp` pages before calling `wiki.py ingest`.
+Available commands: `ingest`, `query`, `lint`, `index`, `rebuild`, `session-update`,
+`scan-inbox`, `ingest-pdf`, `process-raw`, `serve`, `behavior-log`, `self-reflect`

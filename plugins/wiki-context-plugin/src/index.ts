@@ -10,7 +10,8 @@ export default definePluginEntry({
   id: "wiki-context-plugin",
   name: "Wiki Context Injector",
   description:
-    "Runs wiki_context.py before every prompt and prepends relevant wiki pages as <wiki-context> block.",
+    "Runs wiki_context.py before every prompt and prepends relevant wiki pages as <wiki-context> block. " +
+    "On the first prompt of each session, also prepends a <wiki-briefing> with session state and mandatory rules.",
 
   register(api) {
     // OpenClaw passes plugin-specific config via api.pluginConfig, not api.config
@@ -48,6 +49,14 @@ export default definePluginEntry({
     const maxChars = String(cfg.maxChars ?? 600);
     const timeoutMs = cfg.timeoutMs ?? 15_000;
     const debugLog = `${workspace}/.wiki-plugin-debug.log`;
+
+    // wiki_check_setup.py lives next to wiki_context.py in scripts/
+    const checkSetupScript = join(dirname(wikiContextScript), "wiki_check_setup.py");
+
+    // Emitted once per plugin lifetime (= once per session).
+    // Gives the agent a <wiki-briefing> with session state and mandatory rules
+    // before it processes any user message — equivalent to Claude Code's SessionStart hook.
+    let sessionBriefingSent = false;
 
     // Startup: verify python can import lancedb (fail silently, warn loudly)
     void (async () => {
@@ -93,8 +102,30 @@ export default definePluginEntry({
           return {};
         }
 
-        let output = "";
-        let errorMsg = "";
+        const parts: string[] = [];
+
+        // --- Session briefing (first prompt only) ---
+        // OpenClaw has no SessionStart hook equivalent, so we inject the briefing
+        // on the very first before_prompt_build call. This mirrors what
+        // wiki_check_setup.py does for Claude Code via the SessionStart hook.
+        if (!sessionBriefingSent) {
+          sessionBriefingSent = true;
+          if (existsSync(checkSetupScript)) {
+            try {
+              const { stdout } = await execFileAsync(
+                python,
+                [checkSetupScript, "--workspace", workspace],
+                { encoding: "utf-8", timeout: 15_000 }
+              );
+              const briefing = stdout.trim();
+              if (briefing) parts.push(briefing);
+            } catch {
+              // Fail silently — never block the user's prompt.
+            }
+          }
+        }
+
+        // --- Wiki context (every prompt) ---
         try {
           const result = await execFileAsync(
             python,
@@ -107,9 +138,15 @@ export default definePluginEntry({
             ],
             { encoding: "utf-8", timeout: timeoutMs }
           );
-          output = result.stdout.trim();
+          const context = result.stdout.trim();
+          if (context) parts.push(context);
         } catch (err) {
-          errorMsg = String(err);
+          if (debug) {
+            try {
+              appendFileSync(debugLog,
+                `[${new Date().toISOString()}] wiki_context.py error: ${String(err)}\n`, "utf-8");
+            } catch {}
+          }
           // Always fail silently — never block the user's prompt.
         }
 
@@ -119,11 +156,11 @@ export default definePluginEntry({
               `[${new Date().toISOString()}]\n` +
               `event keys: ${eventKeys}\n` +
               `userText (${userText.length} chars): ${userText.slice(0, 120)}\n` +
-              `output (${output.length} chars): ${output.slice(0, 200)}\n` +
-              (errorMsg ? `error: ${errorMsg}\n` : ""), "utf-8");
+              `output (${parts.join("\n").length} chars): ${parts.join("\n").slice(0, 200)}\n`, "utf-8");
           } catch {}
         }
 
+        const output = parts.join("\n\n").trim();
         if (output) {
           return { prependContext: output };
         }
@@ -140,7 +177,6 @@ export default definePluginEntry({
         (api as unknown as Record<string, (...args: unknown[]) => unknown>).registerTool(
           "wiki_process_raw",
           async (params: { project?: string }) => {
-            // wiki.py lives next to wiki_context.py in the same scripts/ directory
             const wikiPy = join(dirname(wikiContextScript), "wiki.py");
             const args = ["process-raw", "--workspace", workspace];
             if (params?.project) {
