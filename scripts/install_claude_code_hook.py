@@ -202,6 +202,78 @@ def detect_python() -> str:
     return "py" if os.name == "nt" else "python3"
 
 
+_WIKI_HOOK_MARKERS = ("wiki_context.py", "wiki_check_setup.py")
+
+
+def _settings_has_wiki_hooks(path: Path) -> bool:
+    """Returns True if any wiki hook is present in the given settings.json."""
+    if not path.exists():
+        return False
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return False
+    for event in ("UserPromptSubmit", "SessionStart"):
+        for block in content.get("hooks", {}).get(event, []):
+            for h in block.get("hooks", []):
+                if any(m in h.get("command", "") for m in _WIKI_HOOK_MARKERS):
+                    return True
+    return False
+
+
+def _remove_wiki_hooks(path: Path, dry_run: bool = False) -> bool:
+    """Removes all wiki hooks from a settings.json file. Returns True if anything changed."""
+    if not path.exists():
+        print(f"  {path} — not found, nothing to remove.")
+        return False
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"ERROR: cannot parse {path}: {e}", file=sys.stderr)
+        return False
+
+    changed = False
+    for event in ("UserPromptSubmit", "SessionStart"):
+        original = content.get("hooks", {}).get(event, [])
+        filtered = [
+            block for block in original
+            if not any(
+                any(m in h.get("command", "") for m in _WIKI_HOOK_MARKERS)
+                for h in block.get("hooks", [])
+            )
+        ]
+        if len(filtered) != len(original):
+            changed = True
+            hooks_dict = content.setdefault("hooks", {})
+            if filtered:
+                hooks_dict[event] = filtered
+            else:
+                hooks_dict.pop(event, None)
+
+    if not changed:
+        print(f"  {path} — no wiki hooks found.")
+        return False
+
+    if dry_run:
+        print(f"DRY RUN — would remove wiki hooks from {path}")
+        return True
+
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=".settings.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(content, f, indent=2)
+            f.write("\n")
+        os.replace(tmp_path, path)
+        print(f"  Removed wiki hooks from {path}")
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Install wiki-context UserPromptSubmit hook for Claude Code"
@@ -244,6 +316,20 @@ def main() -> None:
         "--verify",
         action="store_true",
         help="Read the existing hook from settings.json and verify the Python exe works",
+    )
+    parser.add_argument(
+        "--global",
+        dest="install_global",
+        action="store_true",
+        help="Install hooks into ~/.claude/settings.json instead of <workspace>/.claude/settings.json",
+    )
+    parser.add_argument(
+        "--remove-global",
+        action="store_true",
+        help=(
+            "Remove wiki hooks from ~/.claude/settings.json before installing locally. "
+            "Use this to fix double-execution caused by hooks present in both global and local settings."
+        ),
     )
     args = parser.parse_args()
 
@@ -313,10 +399,32 @@ def main() -> None:
         sys.exit(1)
 
     # Resolve settings.json path
+    global_settings_path = Path.home() / ".claude" / "settings.json"
     if args.settings:
         settings_path = Path(args.settings).resolve()
+    elif args.install_global:
+        settings_path = global_settings_path
     else:
         settings_path = workspace / ".claude" / "settings.json"
+
+    # --remove-global: clean up global settings before installing locally
+    if args.remove_global:
+        print("Removing wiki hooks from global settings...")
+        _remove_wiki_hooks(global_settings_path, dry_run=args.dry_run)
+
+    # Cross-file duplicate check: warn if hooks already exist in the other settings file
+    other_settings = (
+        global_settings_path if settings_path != global_settings_path else workspace / ".claude" / "settings.json"
+    )
+    if not args.remove_global and _settings_has_wiki_hooks(other_settings):
+        print(
+            f"\nWARNING: wiki hooks already found in:\n"
+            f"  {other_settings}\n"
+            f"Installing in both files causes double execution on every prompt.\n"
+            f"To fix: re-run with --remove-global to remove the global copy first:\n"
+            f"  py scripts/install_claude_code_hook.py --workspace {workspace} --remove-global\n",
+            file=sys.stderr,
+        )
 
     # Load existing settings or start fresh
     if settings_path.exists():

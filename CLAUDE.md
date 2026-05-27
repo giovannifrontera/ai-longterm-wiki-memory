@@ -33,6 +33,11 @@ Restart Claude Code after installation.
 > use `--python <that-path>`. The shebang `#!/usr/bin/env python3` may resolve
 > to a different Python than `py -c`.
 
+> **Double-execution warning:** Claude Code merges hooks from `~/.claude/settings.json` (global)
+> and `<workspace>/.claude/settings.json` (local). If wiki hooks are present in both files,
+> every prompt triggers two context injections. The install script detects this and prints a warning.
+> Fix: `py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --remove-global`
+
 ### Options
 
 | Option | Default | Description |
@@ -40,6 +45,8 @@ Restart Claude Code after installation.
 | `--workspace` | required | Absolute path to the wiki workspace |
 | `--k` | 3 | Number of wiki chunks to inject per prompt |
 | `--python` | `py` / `python3` | Python executable (use absolute path on Windows) |
+| `--global` | — | Install into `~/.claude/settings.json` instead of local |
+| `--remove-global` | — | Remove wiki hooks from global settings before installing locally |
 | `--dry-run` | — | Preview without writing |
 
 ## Architecture (v3) — three layers, one brain

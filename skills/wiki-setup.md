@@ -72,12 +72,22 @@ py scripts/install_claude_code_hook.py --workspace <WORKSPACE>
 
 This command also updates the `workspace` field in `wiki.config.json` to the absolute path automatically.
 
-Verify there are no WARNING messages in the output. If you see `WARNING: no Python...` or `ERROR: ... cannot import lancedb`:
-```bash
-py -c "import sys; print(sys.executable)"
-# Copy the path and use it with --python
-py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --python <PATH>
-```
+**Read the output carefully before continuing:**
+
+- If you see `WARNING: no Python...` or `ERROR: ... cannot import lancedb`:
+  ```bash
+  py -c "import sys; print(sys.executable)"
+  # Copy the path and use it with --python
+  py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --python <PATH>
+  ```
+
+- If you see `WARNING: wiki hooks already found in ~/.claude/settings.json`:
+  Hooks are present in both global and local settings → **double execution on every prompt**.
+  Fix by removing the global copy first:
+  ```bash
+  py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --remove-global
+  ```
+  This removes the global wiki hooks and re-runs the local install in a single step.
 
 > **Note for Windows Store Python users:** if `py` resolves to a Python that cannot import `lancedb`, always pass `--python` with the absolute path. Use `py -c "import sys; print(sys.executable)"` to find the right one.
 

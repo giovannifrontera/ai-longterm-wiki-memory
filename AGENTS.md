@@ -31,6 +31,11 @@ py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
 > pass the explicit path: `--python <absolute-python-path>`
 > Find it with: `py -c "import sys; print(sys.executable)"`
 
+> **Double-execution warning:** Claude Code merges hooks from `~/.claude/settings.json` (global)
+> and `<workspace>/.claude/settings.json` (local). If wiki hooks are present in both files,
+> every prompt triggers two context injections. The install script detects this and prints a warning.
+> Fix: `py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --remove-global`
+
 ### OpenClaw agent
 
 ```bash
