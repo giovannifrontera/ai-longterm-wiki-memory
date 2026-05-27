@@ -412,19 +412,23 @@ def main() -> None:
         print("Removing wiki hooks from global settings...")
         _remove_wiki_hooks(global_settings_path, dry_run=args.dry_run)
 
-    # Cross-file duplicate check: warn if hooks already exist in the other settings file
-    other_settings = (
-        global_settings_path if settings_path != global_settings_path else workspace / ".claude" / "settings.json"
-    )
-    if not args.remove_global and _settings_has_wiki_hooks(other_settings):
-        print(
-            f"\nWARNING: wiki hooks already found in:\n"
-            f"  {other_settings}\n"
-            f"Installing in both files causes double execution on every prompt.\n"
-            f"To fix: re-run with --remove-global to remove the global copy first:\n"
-            f"  py scripts/install_claude_code_hook.py --workspace {workspace} --remove-global\n",
-            file=sys.stderr,
-        )
+    # Cross-file duplicate check: warn if wiki hooks exist in any canonical location
+    # other than the install target. Always checks both global and local default paths.
+    canonical_others = {
+        global_settings_path,
+        workspace / ".claude" / "settings.json",
+    } - {settings_path}
+    if not args.remove_global:
+        for other in canonical_others:
+            if _settings_has_wiki_hooks(other):
+                print(
+                    f"\nWARNING: wiki hooks already found in:\n"
+                    f"  {other}\n"
+                    f"Installing in both files causes double execution on every prompt.\n"
+                    f"To fix: re-run with --remove-global to remove the global copy first:\n"
+                    f"  py scripts/install_claude_code_hook.py --workspace {workspace} --remove-global\n",
+                    file=sys.stderr,
+                )
 
     # Load existing settings or start fresh
     if settings_path.exists():
