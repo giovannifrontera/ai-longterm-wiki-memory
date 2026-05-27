@@ -1,7 +1,7 @@
 # AI Longterm Wiki Memory
 
-[![Version](https://img.shields.io/badge/versione-3.1.1-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-106%20passati-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/versione-3.1.2-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-124%20passati-brightgreen)](tests/)
 [![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
@@ -507,6 +507,18 @@ Ogni comando produce JSON su stdout:
 ---
 
 ## Changelog
+
+### v3.1.2 — 2026-05-27
+
+**Fix: doppia esecuzione degli hook quando i settings globali e locali di Claude Code contengono entrambi gli hook wiki**
+
+- **fix: rilevamento duplicati cross-file in `install_claude_code_hook.py`** — L'installer ora controlla sia `~/.claude/settings.json` (globale) che `<workspace>/.claude/settings.json` (locale) prima di scrivere. Se trova hook wiki in un file canonico diverso dal target, stampa un `WARNING` con il comando esatto per risolvere. In precedenza questo passava inosservato, causando l'esecuzione doppia di `wiki_context.py` e `wiki_check_setup.py` ad ogni prompt.
+- **feat: flag `--remove-global`** — Rimuove gli hook wiki da `~/.claude/settings.json` prima di installare in locale. Comando unico per risolvere la doppia esecuzione: `py scripts/install_claude_code_hook.py --workspace <ws> --remove-global`.
+- **feat: flag `--global`** — Installa gli hook in `~/.claude/settings.json` invece dei settings locali del workspace.
+- **docs: AGENTS.md, CLAUDE.md, skills/wiki-setup.md** — Tutte le guide di installazione documentano ora il problema della doppia esecuzione e il fix con `--remove-global`.
+- **test: 18 nuovi test** in `test_install_hook.py`.
+
+**Non interessati:** utenti OpenClaw (file di config singolo, nessun merge globale/locale).
 
 ### v3.0.1 — 2026-05-24
 

@@ -6,8 +6,8 @@
 
 Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
 
-[![Version](https://img.shields.io/badge/version-3.1.1-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](tests/)
+[![Version](https://img.shields.io/badge/version-3.1.2-informational)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-124%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-orange)](https://claude.ai/code)
@@ -518,7 +518,7 @@ Minimal config:
 ```bash
 py scripts/wiki.py rebuild --workspace my-workspace/
 pytest tests/ -v
-# Expected: 106 passed
+# Expected: 124 passed
 ```
 
 ### Dependencies
@@ -532,7 +532,7 @@ pytest tests/ -v
 | `pdfplumber ≥ 0.11.0` | PDF text extraction — used by `wiki_pdf_watcher.py` |
 | `pyyaml ≥ 6.0` | Parses `wiki.config.json` and YAML frontmatter |
 | `requests ≥ 2.31.0` | HTTP fetching during source ingestion |
-| `pytest ≥ 8.0.0` | Test runner — 106 tests covering all workflows |
+| `pytest ≥ 8.0.0` | Test runner — 124 tests covering all workflows |
 | `fastapi ≥ 0.111.0` | Web server for the browser frontend |
 | `uvicorn[standard] ≥ 0.29.0` | ASGI server — runs FastAPI with WebSocket support |
 | `watchfiles ≥ 0.21.0` | Async file watcher — triggers live graph updates |
@@ -622,6 +622,18 @@ Every command outputs JSON to stdout:
 ---
 
 ## Changelog
+
+### v3.1.2 — 2026-05-27
+
+**Fix: double-execution of hooks when global and local Claude Code settings both contain wiki hooks**
+
+- **fix: cross-file duplicate detection in `install_claude_code_hook.py`** — The installer now checks both `~/.claude/settings.json` (global) and `<workspace>/.claude/settings.json` (local) for existing wiki hooks before writing. If hooks are found in a canonical location other than the install target, a `WARNING` is printed with the exact command to fix it. Previously, this went undetected, causing every prompt to run `wiki_context.py` and `wiki_check_setup.py` twice.
+- **feat: `--remove-global` flag** — Removes wiki hooks from `~/.claude/settings.json` before installing locally. Single command to resolve double-execution for existing installations: `py scripts/install_claude_code_hook.py --workspace <ws> --remove-global`.
+- **feat: `--global` flag** — Installs hooks into `~/.claude/settings.json` instead of the local workspace settings.
+- **docs: AGENTS.md, CLAUDE.md, skills/wiki-setup.md** — All installation guides now document the double-execution problem and the `--remove-global` fix.
+- **test: 18 new tests** in `test_install_hook.py` covering `_settings_has_wiki_hooks`, `_remove_wiki_hooks`, cross-file WARNING, and `--remove-global` dry-run behaviour.
+
+**Not affected:** OpenClaw users (single config file, no global/local merge).
 
 ### v3.1.1 — 2026-05-26
 
