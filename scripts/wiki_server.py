@@ -286,7 +286,10 @@ async def api_context(request: Request, q: str = "", k: int = 3, max_chars: int 
         )
         lancedb_path = os.path.join(_workspace, _cfg.get("lancedb", {}).get("path", "memory/lancedb"))
         db = _wiki_lancedb.get_db(lancedb_path)
-        table = _wiki_lancedb.ensure_table(db)
+        existing_tables = getattr(db.list_tables(), "tables", None) or list(db.list_tables())
+        if "wiki_pages" not in existing_tables:
+            return PlainTextResponse("", status_code=200)
+        table = db.open_table("wiki_pages")
         raw = table.search(vector).limit(k * 4).to_list()
 
         exclude_patterns = _cfg.get("exclude_from_index", [])
