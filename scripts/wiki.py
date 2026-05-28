@@ -93,8 +93,10 @@ def main():
 
     p_ingest = sub.add_parser("ingest")
     p_ingest.add_argument("--workspace", required=True)
-    p_ingest.add_argument("--pages", required=True)
-    p_ingest.add_argument("--log", required=True)
+    p_ingest.add_argument("--pages", required=True, metavar='"p1.tmp,p2.tmp"',
+                          help="Comma-separated list of .tmp file paths to ingest")
+    p_ingest.add_argument("--log", default=None,
+                          help="Log entry (auto-generated from timestamp if omitted)")
 
     p_query = sub.add_parser("query")
     p_query.add_argument("--workspace", required=True)

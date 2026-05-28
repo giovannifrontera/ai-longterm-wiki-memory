@@ -99,7 +99,8 @@ def cmd_ingest(args, cfg):
             idx_content = rebuild_index(wiki_dir, thresholds["index_token_budget"])
             Path(wiki_dir, "index.md").write_text(idx_content, encoding="utf-8")
 
-        _append_log(workspace, "wiki", args.log)
+        log_entry = args.log or f"ingest | {datetime.now().strftime('%Y-%m-%d %H:%M')} | {len(final_paths)} page(s)"
+        _append_log(workspace, "wiki", log_entry)
 
         written = [fp for _, fp in final_paths]
         lint_result = _mini_lint(workspace, written, db)

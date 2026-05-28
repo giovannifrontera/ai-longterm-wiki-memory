@@ -19,6 +19,7 @@ import os
 import sys
 import warnings
 from datetime import datetime
+from pathlib import Path
 
 # Silence all Python warnings to stdout — this is a hook, stdout must stay clean
 warnings.filterwarnings("ignore")
@@ -121,22 +122,43 @@ def _run(args):
             seen[path] = {"dist": dist, "chunk_text": chunk[: args.max_chars]}
 
     top = sorted(seen.items(), key=lambda x: x[1]["dist"])[: args.k]
-    if not top:
+
+    # Check for stale .tmp files — warn regardless of whether semantic results exist
+    stale_tmp = []
+    for root_name in ("wiki", "wiki-works"):
+        root = Path(args.workspace) / root_name
+        if root.is_dir():
+            stale_tmp.extend(
+                os.path.relpath(str(p), args.workspace).replace("\\", "/")
+                for p in root.rglob("*.tmp")
+            )
+
+    if not top and not stale_tmp:
         return
 
     # Write to query log so the dashboard can animate the retrieved nodes
-    try:
-        log_path = os.path.join(args.workspace, ".wiki-query-log.jsonl")
-        entry = {"ts": datetime.now().isoformat(), "q": args.q, "paths": [p for p, _ in top]}
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass
+    if top:
+        try:
+            log_path = os.path.join(args.workspace, ".wiki-query-log.jsonl")
+            entry = {"ts": datetime.now().isoformat(), "q": args.q, "paths": [p for p, _ in top]}
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            pass
 
     lines = ["<wiki-context>"]
-    lines.append(
-        f"Pre-loaded wiki context (top {len(top)} pages by semantic relevance):\n"
-    )
+
+    if stale_tmp:
+        lines.append(
+            f"⚠️ STALE .TMP FILES: {len(stale_tmp)} unprocessed staging file(s) found — "
+            f"run `wiki.py ingest` or remove them: {', '.join(stale_tmp[:5])}"
+        )
+        lines.append("")
+
+    if top:
+        lines.append(
+            f"Pre-loaded wiki context (top {len(top)} pages by semantic relevance):\n"
+        )
     for path, info in top:
         score = round(1.0 - info["dist"], 3)
         lines.append(f"### {path}  [relevance: {score}]")

@@ -8,6 +8,9 @@ description: AI Agent wiki protocol v3 — three-layer brain, autonomous promoti
 > **This is a local skill file.**
 > Access it with `Read skills/wiki-core.md` — do NOT call a Skill tool.
 
+> **Platform note:** Commands below use `py` (Windows Python Launcher).
+> On Linux/macOS replace `py` with `python3` — e.g. `python3 scripts/wiki.py ingest ...`
+
 ## §architecture — Three layers, one brain
 
 All layers are indexed in the same LanceDB vector space. The agent accesses everything through semantic search — directory structure is organisational, not a barrier.
@@ -160,6 +163,22 @@ Do NOT extract PDF text manually — always use the commands below.
 > `wiki.py process-raw` only re-indexes files already in `raw/` — it does NOT
 > create structured wiki pages. It is for bulk re-indexing only.
 > Always follow the full §ingest workflow for new knowledge.
+
+`scan-inbox` checks the PDF inbox directory defined in `wiki.config.json` and enqueues any new PDFs for the §pdf-inbox workflow.
+
+## §maintenance — Rebuild and serve
+
+**Rebuild** (re-embeds all wiki pages from scratch — use after bulk import or index corruption):
+```bash
+py scripts/wiki.py rebuild --workspace <path>
+```
+
+**Serve** (web dashboard at `http://localhost:7331` — graph view + stats):
+```bash
+py scripts/wiki.py serve --workspace <path> [--no-auth]
+```
+
+Do not run `rebuild` during normal operation — it drops and recreates the entire vector index.
 
 ## §workspace — Project selection
 
