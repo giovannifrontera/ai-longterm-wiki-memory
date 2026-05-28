@@ -6,121 +6,14 @@ type: rigid
 
 # Wiki Setup — Guided Installation
 
-> **This is a local skill file, not a Claude Code plugin.**
-> Access it with `Read skills/wiki-setup.md` — do NOT call `Skill("wiki-setup")`.
+> **This is a local skill file.**
+> Access it with `Read skills/wiki-setup.md` — do NOT call a Skill tool.
 
 **IMPORTANT: This is a rigid skill. Execute every step in the order shown. Do not skip or reorder.**
 
 ## Pre-check: identify your platform
 
-- [ ] You are on **Claude Code** → follow §claude-code
 - [ ] You are on **OpenClaw** → follow §openclaw
-
----
-
-## §claude-code — Setup for Claude Code
-
-### Step CC-1: Verify Python dependencies
-
-```bash
-py -m pip install -r requirements.txt
-py -c "import lancedb, pyarrow, sentence_transformers; print('OK')"
-```
-
-If this fails: install Python 3.10+ and retry. Do not proceed until it prints `OK`.
-
-### Step CC-2: Prepare the workspace directory and wiki.config.json
-
-The workspace is the folder that will contain `wiki/`, `wiki-works/`, `memory/`.
-
-**If you are using the repo directory itself as your workspace** (most common case):
-- `wiki.config.json` already exists in the repo root with placeholder values.
-- Skip to CC-3 — the install script will update it automatically.
-
-**If your workspace is a different directory** (separate from the repo):
-```bash
-mkdir -p <WORKSPACE>/wiki <WORKSPACE>/wiki-works <WORKSPACE>/memory
-```
-
-Create `<WORKSPACE>/wiki.config.json` with this content (replace `<WORKSPACE>` with the absolute path):
-```json
-{
-  "workspace": "<WORKSPACE>",
-  "pdf_inbox": { "project_default": "ricerca" },
-  "projects": {
-    "ricerca": { "path": "wiki-works/ricerca", "keywords": [] }
-  },
-  "thresholds": {
-    "index_token_budget": 4000, "staleness_days": 90,
-    "similarity_merge": 0.95, "similarity_orphan": 0.50,
-    "synthesis_min_tokens": 300, "synthesis_min_sources": 2,
-    "chunk_size_tokens": 512, "chunk_overlap_tokens": 64,
-    "page_chunk_threshold_tokens": 1500, "quality_filter_min_score": 6,
-    "dedup_auto": 0.90, "dedup_warn": 0.75
-  },
-  "self_reflection": { "enabled": true, "correction_threshold": 3 },
-  "lancedb": { "path": "memory/lancedb", "embedding_model": "BAAI/bge-m3" },
-  "exclude_from_index": []
-}
-```
-
-### Step CC-3: Install the Claude Code hook
-
-```bash
-py scripts/install_claude_code_hook.py --workspace <WORKSPACE>
-```
-
-This command also updates the `workspace` field in `wiki.config.json` to the absolute path automatically.
-
-**Read the output carefully before continuing:**
-
-- If you see `WARNING: no Python...` or `ERROR: ... cannot import lancedb`:
-  ```bash
-  py -c "import sys; print(sys.executable)"
-  # Copy the path and use it with --python
-  py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --python <PATH>
-  ```
-
-- If you see `WARNING: wiki hooks already found in ~/.claude/settings.json`:
-  Hooks are present in both global and local settings → **double execution on every prompt**.
-  Fix by removing the global copy first:
-  ```bash
-  py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --remove-global
-  ```
-  This removes the global wiki hooks and re-runs the local install in a single step.
-
-> **Note for Windows Store Python users:** if `py` resolves to a Python that cannot import `lancedb`, always pass `--python` with the absolute path. Use `py -c "import sys; print(sys.executable)"` to find the right one.
-
-### Step CC-4: Initialize LanceDB
-
-```bash
-py scripts/wiki.py rebuild --workspace <WORKSPACE>
-```
-
-Expected: `"pages_embedded": 0` (normal — the wiki is empty).
-
-### Step CC-5: Update your user CLAUDE.md
-
-Open `~/.claude/CLAUDE.md` (or the current project's CLAUDE.md) and add:
-
-```markdown
-## Wiki workspace
-Active wiki workspace: <WORKSPACE>
-```
-
-### Step CC-6: Restart Claude Code
-
-Restart Claude Code. The next prompt should receive `<wiki-context>` (empty the first time — normal).
-
-### Step CC-7: Final verification
-
-```bash
-py scripts/install_claude_code_hook.py --verify --settings <WORKSPACE>/.claude/settings.json
-```
-
-Expected: `OK: '...' can import lancedb`
-
-**Claude Code setup complete.**
 
 ---
 

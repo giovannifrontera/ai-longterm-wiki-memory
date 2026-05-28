@@ -1,6 +1,6 @@
 # AGENTS.md Patch
 
-> **Deprecated (v2.3.0):** These instructions are now injected automatically into your workspace `CLAUDE.md` / `AGENTS.md` by the setup scripts (`install_claude_code_hook.py` and `setup_openclaw.py`). You no longer need to apply this patch manually. This file is kept for reference and backward compatibility.
+> **Deprecated (v2.3.0):** These instructions are now injected automatically into your workspace `AGENTS.md` by the setup script (`setup_openclaw.py`). You no longer need to apply this patch manually. This file is kept for reference and backward compatibility.
 
 Add these lines at the end of the operative instructions section in your `AGENTS.md`:
 

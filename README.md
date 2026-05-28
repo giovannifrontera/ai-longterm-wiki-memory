@@ -10,7 +10,6 @@ Your AI agent forgets everything between sessions. This gives it a structured, s
 [![Tests](https://img.shields.io/badge/tests-124%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
 [Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [PDF Ingestion](#multi-source-pdf-ingestion-v20) · [Web Interface](#web-interface-v21) · [Dashboard](#dashboard-observability-v22) · [Integration](#integration) · [CLI Reference](#cli-reference)
@@ -25,12 +24,9 @@ Your AI agent forgets everything between sessions. This gives it a structured, s
 >
 > | You are running on… | Read this file immediately |
 > |---------------------|---------------------------|
-> | **Claude Code** | [`CLAUDE.md`](CLAUDE.md) |
 > | **OpenClaw** | [`AGENTS.md`](AGENTS.md) |
 >
-> Both files contain mandatory installation steps. Skipping them means the wiki context injection will not work and every subsequent action may silently fail.
->
-> **Automatic setup detection is active.** At the start of every session, the system runs `scripts/wiki_check_setup.py`. If the workspace is not configured or the vector index is empty, your context will contain a `<wiki-setup-required>` block. **When you see that block, stop everything and invoke the `wiki-setup` skill before taking any other action** — including asking the user questions. The skill guides you through the full setup step by step, including updating your own memory files (`CLAUDE.md` or `AGENTS.md`) with the workspace path.
+> This file contains mandatory installation steps. Skipping them means the wiki context injection will not work and every subsequent action may silently fail.
 
 ## Interface
 
@@ -136,9 +132,9 @@ wiki_context.py → vector search
 Agent has relevant context — regardless of intent classification
 ```
 
-Install with one command (Claude Code):
+Install for OpenClaw (one command):
 ```bash
-py scripts/install_claude_code_hook.py --workspace /path/to/workspace
+py scripts/setup_openclaw.py --workspace /path/to/workspace
 ```
 
 ### Multi-project routing
@@ -373,36 +369,13 @@ workspace/
 
 ## Integration
 
-Works with any agent that can read files and call bash commands. First-class support for Claude Code and OpenClaw.
+Works with any agent that can read files and call bash commands. This repo provides first-class support for OpenClaw.
 
 ### Claude Code
 
-> **Two Claude Code integration approaches:**
->
-> | Approach | Repo | Description |
-> |----------|------|-------------|
-> | **Hook only** (this repo) | [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) | Installs a `UserPromptSubmit` hook for context injection. Simple, no Node.js required. |
-> | **MCP server + hook** (recommended) | [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Full TypeScript MCP server exposing `wiki_query`, `wiki_ingest`, `wiki_lint`, `wiki_serve` as native tools, plus auto-detected hook. |
+For the native Claude Code MCP integration (recommended), see the dedicated repo: [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode).
 
-**Hook-only install (this repo):**
-```bash
-py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
-```
-Writes the `UserPromptSubmit` hook into `.claude/settings.json`. Idempotent — safe to re-run. Restart Claude Code to activate.
-
-Options: `--k 5` (more pages), `--python python3` (non-Windows), `--dry-run` (preview only).
-
-> **Two injection mechanisms:** `wiki_context.py` is called by two independent systems — Claude Code (via the `UserPromptSubmit` hook installed by `scripts/install_claude_code_hook.py`) and OpenClaw (via the TypeScript plugin `plugins/wiki-context-plugin/` using the `before_prompt_build` hook). Both call the same `wiki_context.py` script and produce identical results.
->
-> **Pattern note:** Patterns in `exclude_from_index` use Python `fnmatch` (not recursive glob). `wiki/sub/**` matches only one level deep — use explicit patterns like `wiki/sub/*.md` instead.
-
-**Agent-driven setup:** if a Claude Code agent opens this repo, `CLAUDE.md` in the root provides all instructions automatically.
-
-**Add to your workspace `CLAUDE.md`:**
-```
-At the start of every session, read <workspace>/wiki-session.md.
-Before any wiki operation, re-read skills/wiki-core.md.
-```
+> This repo focuses on the OpenClaw plugin. The `wiki_context.py` script is still shared — both integrations call the same Python backend.
 
 ### OpenClaw
 
@@ -618,8 +591,7 @@ Every command outputs JSON to stdout:
 
 | File | Contents |
 |------|----------|
-| [`AGENTS.md`](AGENTS.md) | Agent install instructions (any agent — Claude Code or OpenClaw) |
-| [`CLAUDE.md`](CLAUDE.md) | Claude Code-specific install guide |
+| [`AGENTS.md`](AGENTS.md) | Agent install instructions for OpenClaw |
 | [`DESIGN.md`](DESIGN.md) | Full architecture, workflow specs, LanceDB schema, conflict resolution |
 | [`SPEC.md`](SPEC.md) | Implementation spec, error states table, integration detail |
 | [`skills/wiki-core.md`](skills/wiki-core.md) | The skill file to install in your agent |
@@ -797,6 +769,6 @@ AGPL-3.0 — requires anyone who distributes or runs the software as a service t
 
 <div align="center">
 
-Works with [Claude Code](https://claude.ai/code) and [OpenClaw](https://github.com/openclaw/openclaw) · Embeddings by [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store by [LanceDB](https://lancedb.github.io/lancedb/)
+Works with [OpenClaw](https://github.com/openclaw/openclaw) · Embeddings by [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store by [LanceDB](https://lancedb.github.io/lancedb/)
 
 </div>

@@ -1,4 +1,4 @@
-# AGENTS.md — ai-wiki-system
+# AGENTS.md — ai-longterm-wiki-memory-OpenClaw
 
 > ## ⛔ STOP — READ THIS BEFORE ANYTHING ELSE
 >
@@ -10,33 +10,12 @@
 > If you see `<wiki-briefing>` in your context, it already contains the summary —
 > but you must still Read skills/wiki-core.md for the full protocol.
 >
-> **If you see `<wiki-setup-required>`:**
-> Do NOT call any skill or tool named "wiki-setup" — it is not a registered plugin.
-> Instead: `Read skills/wiki-setup.md` and follow every step in order.
-
 ---
 
 This repo provides a long-term wiki memory system for AI agents.
 It injects semantically relevant wiki pages into every prompt automatically.
 
 ## Installation
-
-### Claude Code agent
-
-> **Recommended for Claude Code:** use the dedicated MCP integration at [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) — it exposes native MCP tools (`wiki_query`, `wiki_ingest`, `wiki_lint`, `wiki_serve`) plus auto-detected Python hook. The hook-only method below is simpler but lacks MCP tools.
-
-```bash
-py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
-```
-
-> **Windows note:** if `py` resolves to a Python that cannot import `lancedb`,
-> pass the explicit path: `--python <absolute-python-path>`
-> Find it with: `py -c "import sys; print(sys.executable)"`
-
-> **Double-execution warning:** Claude Code merges hooks from `~/.claude/settings.json` (global)
-> and `<workspace>/.claude/settings.json` (local). If wiki hooks are present in both files,
-> every prompt triggers two context injections. The install script detects this and prints a warning.
-> Fix: `py scripts/install_claude_code_hook.py --workspace <WORKSPACE> --remove-global`
 
 ### OpenClaw agent
 
@@ -122,7 +101,6 @@ Opens at `http://localhost:7331`. Tabs: **Graf** (page graph) and **Stats**.
 `wiki.config.json` already exists with placeholder values. Run:
 
 ```bash
-py scripts/install_claude_code_hook.py --workspace /absolute/path/to/this/repo
 py scripts/wiki.py rebuild --workspace /absolute/path/to/this/repo
 ```
 
@@ -156,7 +134,6 @@ mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works /path/to/workspac
 
 Then:
 ```bash
-py scripts/install_claude_code_hook.py --workspace /path/to/workspace
 py scripts/wiki.py rebuild --workspace /path/to/workspace
 ```
 

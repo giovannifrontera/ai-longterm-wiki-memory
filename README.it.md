@@ -2,7 +2,6 @@
 
 [![Version](https://img.shields.io/badge/versione-3.1.2-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-124%20passati-brightgreen)](tests/)
-[![Claude Code](https://img.shields.io/badge/funziona%20con-Claude%20Code-orange)](https://claude.ai/code)
 [![OpenClaw](https://img.shields.io/badge/funziona%20con-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
 **Memoria semantica a lungo termine per agenti AI**
@@ -96,9 +95,9 @@ Blocco <wiki-context> aggiunto al prompt
 L'agente ha sempre il contesto rilevante — indipendente dalla classificazione dell'intent
 ```
 
-Installazione con un comando (Claude Code):
+Installazione con un comando (OpenClaw):
 ```bash
-py scripts/install_claude_code_hook.py --workspace /path/al/workspace
+py scripts/setup_openclaw.py --workspace /path/al/workspace
 ```
 
 ### Routing multi-progetto
@@ -316,36 +315,13 @@ workspace/
 
 ## Integrazione
 
-Funziona con qualsiasi agente che può leggere file e chiamare bash. Supporto nativo per Claude Code e OpenClaw.
+Funziona con qualsiasi agente che può leggere file e chiamare bash. Questo repo fornisce supporto nativo per OpenClaw.
 
 ### Claude Code
 
-> **Due approcci di integrazione per Claude Code:**
->
-> | Approccio | Repo | Descrizione |
-> |-----------|------|-------------|
-> | **Solo hook** (questo repo) | [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) | Installa un hook `UserPromptSubmit` per l'iniezione di contesto. Semplice, non richiede Node.js. |
-> | **MCP server + hook** (consigliato) | [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Server MCP TypeScript completo che espone `wiki_query`, `wiki_ingest`, `wiki_lint`, `wiki_serve` come tool nativi, più hook auto-rilevato. |
+Per l'integrazione nativa con MCP server (raccomandata), vedi il repo dedicato: [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode).
 
-**Installazione solo-hook (questo repo):**
-```bash
-py scripts/install_claude_code_hook.py --workspace /path/assoluto/al/workspace
-```
-Scrive l'hook `UserPromptSubmit` in `.claude/settings.json`. Idempotente — sicuro da rieseguire. Riavvia Claude Code per attivare.
-
-Opzioni: `--k 5` (più pagine), `--python python3` (non-Windows), `--dry-run` (anteprima).
-
-> **Due meccanismi di iniezione:** `wiki_context.py` viene chiamato da due sistemi indipendenti — Claude Code (tramite l'hook `UserPromptSubmit` installato da `scripts/install_claude_code_hook.py`) e OpenClaw (tramite il plugin TypeScript `plugins/wiki-context-plugin/` con l'hook `before_prompt_build`). Entrambi chiamano lo stesso `wiki_context.py` e producono risultati identici.
->
-> **Nota sui pattern:** I pattern in `exclude_from_index` usano Python `fnmatch` (non glob ricorsivo). `wiki/sub/**` matcha solo un livello — usa pattern espliciti come `wiki/sub/*.md`.
-
-**Setup guidato da agente:** se un agente Claude Code apre questo repo, `CLAUDE.md` nella root fornisce tutte le istruzioni automaticamente.
-
-**Aggiungi al `CLAUDE.md` del tuo workspace:**
-```
-All'inizio di ogni sessione leggi <workspace>/wiki-session.md.
-Prima di qualsiasi operazione wiki, rileggi skills/wiki-core.md.
-```
+> Questo repo si concentra sul plugin OpenClaw. Lo script `wiki_context.py` è condiviso — entrambe le integrazioni chiamano lo stesso backend Python.
 
 ### OpenClaw
 
@@ -504,8 +480,7 @@ Ogni comando produce JSON su stdout:
 
 ## Documentazione
 
-- [`AGENTS.md`](AGENTS.md) — istruzioni installazione per qualsiasi agente (Claude Code o OpenClaw)
-- [`CLAUDE.md`](CLAUDE.md) — guida installazione specifica per Claude Code
+- [`AGENTS.md`](AGENTS.md) — istruzioni installazione per OpenClaw
 - [`DESIGN.md`](DESIGN.md) — architettura completa, workflow, schema LanceDB, risoluzione conflitti
 - [`SPEC.md`](SPEC.md) — spec implementativa, tabella stati di errore, dettagli integrazione
 - [`skills/wiki-core.md`](skills/wiki-core.md) — skill da installare nell'agente
@@ -652,6 +627,6 @@ AGPL-3.0 — chiunque distribuisca o esegua il software come servizio deve condi
 
 <div align="center">
 
-Funziona con [Claude Code](https://claude.ai/code) e [OpenClaw](https://github.com/openclaw/openclaw) · Embedding da [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store da [LanceDB](https://lancedb.github.io/lancedb/)
+Funziona con [OpenClaw](https://github.com/openclaw/openclaw) · Embedding da [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store da [LanceDB](https://lancedb.github.io/lancedb/)
 
 </div>

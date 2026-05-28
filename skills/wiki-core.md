@@ -5,8 +5,8 @@ description: AI Agent wiki protocol v3 — three-layer brain, autonomous promoti
 
 # Wiki Core — AI Agent Protocol v3
 
-> **This is a local skill file, not a Claude Code plugin.**
-> Access it with `Read skills/wiki-core.md` — do NOT call `Skill("wiki-core")`.
+> **This is a local skill file.**
+> Access it with `Read skills/wiki-core.md` — do NOT call a Skill tool.
 
 ## §architecture — Three layers, one brain
 
