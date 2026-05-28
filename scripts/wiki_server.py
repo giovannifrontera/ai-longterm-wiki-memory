@@ -265,11 +265,17 @@ async def _get_embed_model():
     return _embed_model
 
 
+_LOCALHOST_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+
+
 @app.get("/api/context")
-async def api_context(q: str = "", k: int = 3, max_chars: int = 600):
-    """Vector search endpoint for the plugin hot path — no auth required (localhost only)."""
+async def api_context(request: Request, q: str = "", k: int = 3, max_chars: int = 600):
+    """Vector search endpoint for the plugin hot path — restricted to loopback callers."""
+    from fastapi.responses import PlainTextResponse
+    peer = (request.client.host if request.client else None)
+    if peer not in _LOCALHOST_ADDRS:
+        return PlainTextResponse("", status_code=403)
     if not q.strip() or not _LANCEDB_IMPORT_OK or not _workspace:
-        from fastapi.responses import PlainTextResponse
         return PlainTextResponse("", status_code=200)
 
     import fnmatch as _fnmatch
@@ -309,7 +315,6 @@ async def api_context(q: str = "", k: int = 3, max_chars: int = 600):
                 )
 
         if not top and not stale_tmp:
-            from fastapi.responses import PlainTextResponse
             return PlainTextResponse("", status_code=200)
 
         # Log query hits for dashboard WebSocket animation
@@ -343,11 +348,9 @@ async def api_context(q: str = "", k: int = 3, max_chars: int = 600):
             "or disambiguate uncertain intents. Do not run wiki.py query if this context is already sufficient."
         )
 
-        from fastapi.responses import PlainTextResponse
         return PlainTextResponse("\n".join(lines), status_code=200)
 
     except Exception:
-        from fastapi.responses import PlainTextResponse
         return PlainTextResponse("", status_code=200)
 
 
