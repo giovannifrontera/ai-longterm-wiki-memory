@@ -55,7 +55,7 @@ export default definePluginEntry({
 
     // Emitted once per plugin lifetime (= once per session).
     // Gives the agent a <wiki-briefing> with session state and mandatory rules
-    // before it processes any user message — equivalent to Claude Code's SessionStart hook.
+    // before it processes any user message.
     let sessionBriefingSent = false;
 
     // Startup: verify python can import lancedb (fail silently, warn loudly)
@@ -105,9 +105,7 @@ export default definePluginEntry({
         const parts: string[] = [];
 
         // --- Session briefing (first prompt only) ---
-        // OpenClaw has no SessionStart hook equivalent, so we inject the briefing
-        // on the very first before_prompt_build call. This mirrors what
-        // wiki_check_setup.py does for Claude Code via the SessionStart hook.
+        // Inject the session briefing on the very first before_prompt_build call.
         if (!sessionBriefingSent) {
           sessionBriefingSent = true;
           if (existsSync(checkSetupScript)) {

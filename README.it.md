@@ -492,15 +492,7 @@ Ogni comando produce JSON su stdout:
 
 ### v3.1.2 — 2026-05-27
 
-**Fix: doppia esecuzione degli hook quando i settings globali e locali di Claude Code contengono entrambi gli hook wiki**
-
-- **fix: rilevamento duplicati cross-file in `install_claude_code_hook.py`** — L'installer ora controlla sia `~/.claude/settings.json` (globale) che `<workspace>/.claude/settings.json` (locale) prima di scrivere. Se trova hook wiki in un file canonico diverso dal target, stampa un `WARNING` con il comando esatto per risolvere. In precedenza questo passava inosservato, causando l'esecuzione doppia di `wiki_context.py` e `wiki_check_setup.py` ad ogni prompt.
-- **feat: flag `--remove-global`** — Rimuove gli hook wiki da `~/.claude/settings.json` prima di installare in locale. Comando unico per risolvere la doppia esecuzione: `py scripts/install_claude_code_hook.py --workspace <ws> --remove-global`.
-- **feat: flag `--global`** — Installa gli hook in `~/.claude/settings.json` invece dei settings locali del workspace.
-- **docs: AGENTS.md, CLAUDE.md, skills/wiki-setup.md** — Tutte le guide di installazione documentano ora il problema della doppia esecuzione e il fix con `--remove-global`.
-- **test: 18 nuovi test** in `test_install_hook.py`.
-
-**Non interessati:** utenti OpenClaw (file di config singolo, nessun merge globale/locale).
+Refactor interno e miglioramenti ai test. Nessuna modifica funzionale al plugin OpenClaw.
 
 ### v3.0.1 — 2026-05-24
 
@@ -509,7 +501,7 @@ Ogni comando produce JSON su stdout:
 - **Architettura corretta**: la v3.0.0 aveva erroneamente eliminato la promozione e limitato `wiki/` alla sola identità. Design corretto: `wiki-works/<topic>/` = conoscenza di dominio permanente; `wiki/` = conoscenza trasversale distillata (promossa autonomamente); `wiki/identity/` = pattern comportamentali (self-reflect). Tutti i layer indicizzati insieme in LanceDB.
 - **fix: animazione nodi** — `wiki_context.py` (l'hook che gira ad ogni prompt) ora scrive i path delle pagine recuperate in `.wiki-query-log.jsonl`. Il watcher WebSocket del server li rileva e trasmette `query_hit` al frontend, che anima i nodi attivati in oro in tempo reale.
 - **Mockup UI**: illustrazioni SVG del grafo (con animazione query-hit) e della tab Stats aggiunte al README.
-- Tutti i file per umani (README, DESIGN, ROADMAP, AGENTS.md, CLAUDE.md, skill) aggiornati per riflettere l'architettura corretta.
+- Tutti i file per umani (README, DESIGN, ROADMAP, AGENTS.md, skill) aggiornati per riflettere l'architettura corretta.
 
 ### v3.0.0 — 2026-05-24
 
@@ -524,10 +516,9 @@ Ogni comando produce JSON su stdout:
 
 **Installazione guidata da agente**
 
-- `AGENTS.md` — istruzioni universali lette da qualsiasi agente (Claude Code, OpenClaw, Codex, …): due percorsi chiari con comandi imperativi, protocollo d'uso inline — nessun file patch separato necessario
-- `CLAUDE.md` — guida installazione + uso specifica Claude Code; caricata automaticamente dall'agente all'apertura del repo
+- `AGENTS.md` — istruzioni di installazione e protocollo d'uso inline — nessun file patch separato necessario
 - `scripts/setup_openclaw.py` — setup OpenClaw in un comando: rileva il config in 5 posizioni standard (Windows AppData, Linux XDG, home, locale), inietta l'entry del plugin atomicamente, idempotente
-- `install_claude_code_hook.py` e `setup_openclaw.py` iniettano automaticamente le istruzioni d'uso nel `CLAUDE.md` / `AGENTS.md` del workspace dopo il setup — idempotente tramite sentinel `<!-- ai-wiki-system:usage-start -->`
+- `setup_openclaw.py` inietta automaticamente le istruzioni d'uso nel `AGENTS.md` del workspace dopo il setup — idempotente tramite sentinel `<!-- ai-wiki-system:usage-start -->`
 
 **Miglioramenti lint**
 
@@ -595,13 +586,10 @@ Ogni comando produce JSON su stdout:
 
 ### v1.1.1 — 2026-05-21
 
-**Novità:** `scripts/install_claude_code_hook.py` — installer dell'hook `UserPromptSubmit` per Claude Code in un solo comando. Auto-rileva l'eseguibile Python, idempotente, supporta `--dry-run`.
-
 **Bug fix — core Python**
 - **[CRITICO]** `wiki_lancedb.py`: `table_names()` deprecato — corretto a `.list_tables().tables`
 - **[ALTO]** `wiki_workflows.py` `cmd_ingest`: fallimento `shutil.move` a metà loop lasciava file senza vettori — tracciati e ripristinati su eccezione
 - **[MEDIO]** `cmd_lint`: rilevamento rename limitato a `wiki/` e `wiki-works/`
-- **[MEDIO]** `install_claude_code_hook.py`: scrittura atomica per `settings.json`
 
 **Bug fix — plugin OpenClaw**
 - **[CRITICO]** `src/index.ts`: `api.getConfig()` non esiste — corretto a `api.config`
