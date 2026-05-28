@@ -1,6 +1,6 @@
 <div align="center">
 
-# AI Longterm Wiki Memory
+# AI Longterm Wiki Memory — OpenClaw Plugin
 
 **Semantic long-term memory for AI agents**
 
@@ -377,7 +377,14 @@ Works with any agent that can read files and call bash commands. First-class sup
 
 ### Claude Code
 
-**Context injection — one command:**
+> **Two Claude Code integration approaches:**
+>
+> | Approach | Repo | Description |
+> |----------|------|-------------|
+> | **Hook only** (this repo) | [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) | Installs a `UserPromptSubmit` hook for context injection. Simple, no Node.js required. |
+> | **MCP server + hook** (recommended) | [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Full TypeScript MCP server exposing `wiki_query`, `wiki_ingest`, `wiki_lint`, `wiki_serve` as native tools, plus auto-detected hook. |
+
+**Hook-only install (this repo):**
 ```bash
 py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
 ```
@@ -467,8 +474,8 @@ If the agent finds `in-progress` at session start, it warns before doing anythin
 ### Install
 
 ```bash
-git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory
-cd ai-longterm-wiki-memory
+git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw
+cd ai-longterm-wiki-memory-OpenClaw
 pip install -r requirements.txt
 ```
 

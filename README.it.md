@@ -1,4 +1,4 @@
-# AI Longterm Wiki Memory
+# AI Longterm Wiki Memory — Plugin OpenClaw
 
 [![Version](https://img.shields.io/badge/versione-3.1.2-informational)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-124%20passati-brightgreen)](tests/)
@@ -320,7 +320,14 @@ Funziona con qualsiasi agente che può leggere file e chiamare bash. Supporto na
 
 ### Claude Code
 
-**Iniezione contesto — un solo comando:**
+> **Due approcci di integrazione per Claude Code:**
+>
+> | Approccio | Repo | Descrizione |
+> |-----------|------|-------------|
+> | **Solo hook** (questo repo) | [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) | Installa un hook `UserPromptSubmit` per l'iniezione di contesto. Semplice, non richiede Node.js. |
+> | **MCP server + hook** (consigliato) | [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Server MCP TypeScript completo che espone `wiki_query`, `wiki_ingest`, `wiki_lint`, `wiki_serve` come tool nativi, più hook auto-rilevato. |
+
+**Installazione solo-hook (questo repo):**
 ```bash
 py scripts/install_claude_code_hook.py --workspace /path/assoluto/al/workspace
 ```
@@ -409,8 +416,8 @@ Se l'agente trova `in-progress` all'inizio della sessione, avvisa prima di fare 
 ### Installazione
 
 ```bash
-git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory
-cd ai-longterm-wiki-memory
+git clone https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw
+cd ai-longterm-wiki-memory-OpenClaw
 pip install -r requirements.txt
 ```
 

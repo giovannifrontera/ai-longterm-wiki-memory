@@ -23,6 +23,8 @@ It injects semantically relevant wiki pages into every prompt automatically.
 
 ### Claude Code agent
 
+> **Recommended for Claude Code:** use the dedicated MCP integration at [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) — it exposes native MCP tools (`wiki_query`, `wiki_ingest`, `wiki_lint`, `wiki_serve`) plus auto-detected Python hook. The hook-only method below is simpler but lacks MCP tools.
+
 ```bash
 py scripts/install_claude_code_hook.py --workspace /absolute/path/to/workspace
 ```
