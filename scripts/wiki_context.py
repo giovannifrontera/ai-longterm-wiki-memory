@@ -6,7 +6,7 @@ Usage:
     py scripts/wiki_context.py --workspace <path> --q "<query>" [--k 3]
 
 Outputs a <wiki-context> block to stdout with the most relevant wiki chunks.
-Designed for use as a UserPromptSubmit hook in Claude Code or as a pre-hook in OpenClaw.
+Designed for use as a pre-hook in OpenClaw.
 
 Exit codes:
     0 — always (hook must never block the user's prompt)

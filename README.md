@@ -604,42 +604,26 @@ Every command outputs JSON to stdout:
 
 ### v3.1.2 — 2026-05-27
 
-**Fix: double-execution of hooks when global and local Claude Code settings both contain wiki hooks**
-
-- **fix: cross-file duplicate detection in `install_claude_code_hook.py`** — The installer now checks both `~/.claude/settings.json` (global) and `<workspace>/.claude/settings.json` (local) for existing wiki hooks before writing. If hooks are found in a canonical location other than the install target, a `WARNING` is printed with the exact command to fix it. Previously, this went undetected, causing every prompt to run `wiki_context.py` and `wiki_check_setup.py` twice.
-- **feat: `--remove-global` flag** — Removes wiki hooks from `~/.claude/settings.json` before installing locally. Single command to resolve double-execution for existing installations: `py scripts/install_claude_code_hook.py --workspace <ws> --remove-global`.
-- **feat: `--global` flag** — Installs hooks into `~/.claude/settings.json` instead of the local workspace settings.
-- **docs: AGENTS.md, CLAUDE.md, skills/wiki-setup.md** — All installation guides now document the double-execution problem and the `--remove-global` fix.
-- **test: 18 new tests** in `test_install_hook.py` covering `_settings_has_wiki_hooks`, `_remove_wiki_hooks`, cross-file WARNING, and `--remove-global` dry-run behaviour.
-
-**Not affected:** OpenClaw users (single config file, no global/local merge).
+Internal refactor and test improvements. No functional changes to the OpenClaw plugin.
 
 ### v3.1.1 — 2026-05-26
 
-**Windows: fix `CLAUDE_USER_PROMPT` not received by hook**
+**`wiki_context.py` robustness on Windows**
 
-- **fix: `$CLAUDE_USER_PROMPT` shell expansion on Windows** — On Windows, Claude Code runs hook commands via PowerShell, which expands `$CLAUDE_USER_PROMPT` as a PowerShell variable (always empty) before the subprocess starts. As a result, every prompt was searched with an empty query, returning the same 3 irrelevant pages. Fixed by removing `--q "$CLAUDE_USER_PROMPT"` from the hook command entirely; `wiki_context.py` now reads the query directly from `os.environ["CLAUDE_USER_PROMPT"]`, which Claude Code sets on the subprocess environment before execution.
-- **fix: stdout encoding on Windows** — Added `sys.stdout.reconfigure(encoding="utf-8")` at startup. Python on Windows defaults to CP1252, which could cause Claude Code to silently discard the hook output.
-- **fix: empty-query early return** — If both `--q` and the `CLAUDE_USER_PROMPT` env var are empty, the script exits immediately without running an embedding search, eliminating useless log entries.
-- **refactor: `--q` now optional** — `--q` defaults to `""` instead of `required=True`. The env var is the primary source; `--q` remains supported for direct invocations (OpenClaw plugin, manual testing).
-- **fix: `install_claude_code_hook.py`** — Updated generated hook command to omit `--q "$CLAUDE_USER_PROMPT"`. Future reinstalls get the corrected command automatically.
-
-**Not affected:** OpenClaw plugin (passes `--q userText` via `execFile`, no shell involved). Claude Code on Linux/macOS (reads same env var; shell expansion also still works via `--q` if used directly).
+- **fix: stdout encoding on Windows** — Added `sys.stdout.reconfigure(encoding="utf-8")` at startup. Python on Windows defaults to CP1252, which could cause the hook output to be silently discarded.
+- **fix: empty-query early return** — If `--q` and the `CLAUDE_USER_PROMPT` env var are both empty, the script exits immediately without running an embedding search.
+- **refactor: `--q` now optional** — `--q` defaults to `""` instead of `required=True`. The env var is the primary source; `--q` remains supported for direct invocations.
 
 ### v3.1.0 — 2026-05-25
 
 **Installation robustness + new CLI commands + OpenClaw tool + wiki-setup skill**
 
-- **fix: Python exe verification before hook install** — `install_claude_code_hook.py` now runs `_verify_python()` before writing any hook. If no Python can import `lancedb`, the installation **aborts with exit 1** and shows the exact command to fix it — instead of silently writing a broken hook (fixes Windows Store Python `ModuleNotFoundError`).
-- **feat: `--verify` flag** — `install_claude_code_hook.py --verify` reads the existing hook from `settings.json` and confirms the Python exe can import `lancedb`. Useful for diagnosing broken existing installations.
-- **feat: SessionStart hook** — the installer now also writes a `SessionStart` hook that runs `wiki_check_setup.py` at every session start. If the workspace is not configured or LanceDB is empty, the agent receives a `<wiki-setup-required>` block in context.
 - **feat: `process-raw` subcommand** — `wiki.py process-raw --workspace <path> [--project <name>]` bulk-promotes files from `wiki-works/*/raw/` to the index after a PDF scan. Previously required manual `.tmp` workaround.
 - **fix: `ingest-pdf` same-path crash** — `shutil.copy2(src, dest)` when `src == dest` raised `PermissionError: [WinError 32]` on Windows. Now guarded with `src.resolve() != dest.resolve()`.
 - **feat: OpenClaw `wiki_process_raw` tool** — the TypeScript plugin exposes `wiki_process_raw` as a callable tool from chat. Agents can trigger bulk raw promotion without leaving the conversation.
 - **feat: OpenClaw startup Python check** — the plugin validates that the configured Python can import `lancedb` at startup and logs a visible warning if not.
-- **feat: `wiki-setup` rigid skill** — `skills/wiki-setup.md` guides any agent through full installation step by step (Claude Code §CC-1–CC-7, OpenClaw §OC-1–OC-7).
-- **feat: `wiki_check_setup.py`** — lightweight startup check script that outputs `<wiki-setup-required>` if `wiki.config.json` or LanceDB is missing/empty.
-- **docs: Windows Store Python troubleshooting** — `docs/install-openclaw.md` and `docs/install-claude-code.md` now document the `py` launcher issue and how to use `--python` with the absolute path.
+- **feat: `wiki-setup` rigid skill** — `skills/wiki-setup.md` guides any agent through full OpenClaw installation step by step.
+- **docs: Windows Store Python troubleshooting** — `docs/install-openclaw.md` documents the `py` launcher issue and how to use the absolute Python path.
 - **AGENTS.md**: `wiki.config.json` template updated to complete schema (was incomplete — missing `workspace`, `projects`, `thresholds`).
 
 **Testing:** 116 tests, all green.
@@ -651,7 +635,7 @@ Every command outputs JSON to stdout:
 - **Architecture corrected**: v3.0.0 incorrectly removed the promotion mechanism and limited `wiki/` to identity only. Correct design: `wiki-works/<topic>/` = permanent domain knowledge; `wiki/` = cross-domain distilled knowledge (autonomously promoted); `wiki/identity/` = behavioral patterns (self-reflect). All layers indexed together in LanceDB.
 - **fix: node animation** — `wiki_context.py` (the hook that runs on every prompt) now writes retrieved page paths to `.wiki-query-log.jsonl`. The server's WebSocket watcher picks these up and broadcasts `query_hit` to the frontend, which animates the activated nodes gold in real time.
 - **UI mockups**: SVG illustrations of the graph view (with query-hit animation) and the Stats tab added to the README.
-- All human-facing docs (README, DESIGN, ROADMAP, AGENTS.md, CLAUDE.md, skills) updated to reflect the corrected architecture.
+- All human-facing docs (README, DESIGN, ROADMAP, AGENTS.md, skills) updated to reflect the corrected architecture.
 
 ### v3.0.0 — 2026-05-24
 
@@ -666,10 +650,9 @@ Every command outputs JSON to stdout:
 
 **Agent-driven installation**
 
-- `AGENTS.md` — universal install instructions read by any agent (Claude Code, OpenClaw, Codex, …): two clear paths with imperative commands, full usage protocol inline — no separate patch file needed
-- `CLAUDE.md` — Claude Code-specific install + usage guide; auto-loaded by the agent when opening the repo
+- `AGENTS.md` — install instructions and full usage protocol inline — no separate patch file needed
 - `scripts/setup_openclaw.py` — one-command OpenClaw setup: auto-detects config in 5 standard locations (Windows AppData, Linux XDG, home, local), injects plugin entry atomically, idempotent
-- `install_claude_code_hook.py` and `setup_openclaw.py` now also inject usage instructions into the workspace `CLAUDE.md` / `AGENTS.md` automatically after setup — idempotent via `<!-- ai-wiki-system:usage-start -->` sentinel marker
+- `setup_openclaw.py` injects usage instructions into the workspace `AGENTS.md` automatically after setup — idempotent via `<!-- ai-wiki-system:usage-start -->` sentinel marker
 
 **lint improvements**
 
@@ -737,13 +720,10 @@ Every command outputs JSON to stdout:
 
 ### v1.1.1 — 2026-05-21
 
-**New:** `scripts/install_claude_code_hook.py` — one-command `UserPromptSubmit` hook installer for Claude Code. Auto-detects Python executable, idempotent, supports `--dry-run`.
-
 **Bug fixes — Python core**
 - **[CRITICAL]** `wiki_lancedb.py`: `table_names()` deprecated — fixed to `.list_tables().tables`
 - **[HIGH]** `wiki_workflows.py` `cmd_ingest`: mid-loop `shutil.move` failure left files without vectors — tracked and reversed on exception
 - **[MEDIUM]** `cmd_lint`: rename detection scoped to `wiki/` and `wiki-works/` only
-- **[MEDIUM]** `install_claude_code_hook.py`: atomic write for `settings.json`
 
 **Bug fixes — OpenClaw plugin**
 - **[CRITICAL]** `src/index.ts`: `api.getConfig()` doesn't exist — fixed to `api.config`

@@ -56,15 +56,6 @@ Aggiungi al file di configurazione di OpenClaw:
 
 Ad ogni prompt, OpenClaw esegue `wiki_context.py` via `before_prompt_build`. Lo script cerca i chunk semanticamente rilevanti in LanceDB e li prepende come blocco `<wiki-context>`.
 
-## Differenza con il hook Claude Code
-
-| Meccanismo | File | Hook |
-|-----------|------|------|
-| Claude Code | `scripts/install_claude_code_hook.py` | `UserPromptSubmit` |
-| OpenClaw | `plugins/wiki-context-plugin/` | `before_prompt_build` |
-
-Entrambi chiamano lo stesso `wiki_context.py` — il comportamento e' identico.
-
 ## Troubleshooting
 
 ### Windows Store Python: `ModuleNotFoundError: No module named 'pyarrow'`
@@ -82,11 +73,6 @@ Poi nella config OpenClaw:
 {
   "pythonExecutable": "C:\\Users\\<utente>\\AppData\\Local\\...\\python.exe"
 }
-```
-
-Puoi copiare il percorso anche dall'output di:
-```bash
-py scripts/install_claude_code_hook.py --workspace <path> --dry-run
 ```
 
 ### Verificare che il plugin stia funzionando
