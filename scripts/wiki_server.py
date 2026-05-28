@@ -32,6 +32,8 @@ _lint_busy: bool = False
 _server_start: float = 0.0
 
 _ws_clients: Set[WebSocket] = set()
+_embed_model = None  # SentenceTransformer — loaded once on first /api/context call
+_embed_model_lock = asyncio.Lock()
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -56,7 +58,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if _no_auth:
             return await call_next(request)
-        if request.url.path.startswith("/auth/"):
+        if request.url.path.startswith("/auth/") or request.url.path == "/api/context":
             return await call_next(request)
         token = request.cookies.get("wiki_session")
         if not token or not _verify_token(token):
@@ -238,6 +240,115 @@ def _build_stats() -> dict:
 @app.get("/api/stats")
 async def api_stats():
     return JSONResponse(_build_stats())
+
+
+async def _get_embed_model():
+    """Load SentenceTransformer once, keep it in memory for the server lifetime."""
+    global _embed_model
+    if _embed_model is not None:
+        return _embed_model
+    async with _embed_model_lock:
+        if _embed_model is None:
+            import os as _os
+            _os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+            _os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+            _os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+            import logging as _logging
+            for _name in ("sentence_transformers", "transformers", "huggingface_hub"):
+                _logging.getLogger(_name).setLevel(_logging.ERROR)
+            from sentence_transformers import SentenceTransformer
+            model_name = _cfg.get("lancedb", {}).get("embedding_model", "BAAI/bge-m3")
+            loop = asyncio.get_event_loop()
+            _embed_model = await loop.run_in_executor(
+                None, lambda: SentenceTransformer(model_name, device="cpu")
+            )
+    return _embed_model
+
+
+@app.get("/api/context")
+async def api_context(q: str = "", k: int = 3, max_chars: int = 600):
+    """Vector search endpoint for the plugin hot path — no auth required (localhost only)."""
+    if not q.strip() or not _LANCEDB_IMPORT_OK or not _workspace:
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("", status_code=200)
+
+    import fnmatch as _fnmatch
+    try:
+        model = await _get_embed_model()
+        vector = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: model.encode(q, normalize_embeddings=True).tolist()
+        )
+        lancedb_path = os.path.join(_workspace, _cfg.get("lancedb", {}).get("path", "memory/lancedb"))
+        db = _wiki_lancedb.get_db(lancedb_path)
+        table = _wiki_lancedb.ensure_table(db)
+        raw = table.search(vector).limit(k * 4).to_list()
+
+        exclude_patterns = _cfg.get("exclude_from_index", [])
+        seen: dict = {}
+        for r in raw:
+            chunk = r.get("chunk_text") or ""
+            if not chunk:
+                continue
+            path = r["path"]
+            if any(_fnmatch.fnmatch(path, p) for p in exclude_patterns):
+                continue
+            dist = float(r.get("_distance", 1.0))
+            if path not in seen or dist < seen[path]["dist"]:
+                seen[path] = {"dist": dist, "chunk_text": chunk[:max_chars]}
+
+        top = sorted(seen.items(), key=lambda x: x[1]["dist"])[:k]
+
+        # Stale .tmp check — surfaced regardless of search results
+        stale_tmp = []
+        for root_name in ("wiki", "wiki-works"):
+            root = Path(_workspace) / root_name
+            if root.is_dir():
+                stale_tmp.extend(
+                    os.path.relpath(str(p), _workspace).replace("\\", "/")
+                    for p in root.rglob("*.tmp")
+                )
+
+        if not top and not stale_tmp:
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse("", status_code=200)
+
+        # Log query hits for dashboard WebSocket animation
+        if top:
+            try:
+                log_path = Path(_workspace) / ".wiki-query-log.jsonl"
+                entry = {"ts": datetime.now(timezone.utc).isoformat(), "q": q,
+                         "paths": [p for p, _ in top]}
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry) + "\n")
+            except Exception:
+                pass
+
+        lines = ["<wiki-context>"]
+        if stale_tmp:
+            lines.append(
+                f"⚠️ STALE .TMP FILES: {len(stale_tmp)} unprocessed staging file(s) found — "
+                f"run `wiki.py ingest` or remove them: {', '.join(stale_tmp[:5])}"
+            )
+            lines.append("")
+        if top:
+            lines.append(f"Pre-loaded wiki context (top {len(top)} pages by semantic relevance):\n")
+            for path, info in top:
+                score = round(1.0 - info["dist"], 3)
+                lines.append(f"### {path}  [relevance: {score}]")
+                lines.append(info["chunk_text"])
+                lines.append("")
+        lines.append(
+            "</wiki-context>\n"
+            "Use the context above to inform your response, detect conflicts during INGEST, "
+            "or disambiguate uncertain intents. Do not run wiki.py query if this context is already sufficient."
+        )
+
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("\n".join(lines), status_code=200)
+
+    except Exception:
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("", status_code=200)
 
 
 @app.post("/api/lint")

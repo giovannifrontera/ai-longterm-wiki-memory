@@ -48,6 +48,7 @@ export default definePluginEntry({
     const k = String(cfg.k ?? 3);
     const maxChars = String(cfg.maxChars ?? 600);
     const timeoutMs = cfg.timeoutMs ?? 15_000;
+    const serverPort = (cfg as Record<string, unknown>).serverPort ?? 7331;
     const debugLog = `${workspace}/.wiki-plugin-debug.log`;
 
     // wiki_check_setup.py lives next to wiki_context.py in scripts/
@@ -124,28 +125,47 @@ export default definePluginEntry({
         }
 
         // --- Wiki context (every prompt) ---
+        // Fast path: ask the already-running server (model stays in memory → ~50ms).
+        // Slow path fallback: subprocess (cold-starts the model every call → 2-5s).
+        let contextInjected = false;
         try {
-          const result = await execFileAsync(
-            python,
-            [
-              wikiContextScript,
-              "--workspace", workspace,
-              "--q", userText,
-              "--k", k,
-              "--max-chars", maxChars,
-            ],
-            { encoding: "utf-8", timeout: timeoutMs }
-          );
-          const context = result.stdout.trim();
-          if (context) parts.push(context);
-        } catch (err) {
-          if (debug) {
-            try {
-              appendFileSync(debugLog,
-                `[${new Date().toISOString()}] wiki_context.py error: ${String(err)}\n`, "utf-8");
-            } catch {}
+          const url = `http://localhost:${serverPort}/api/context?q=${encodeURIComponent(userText)}&k=${k}&max_chars=${maxChars}`;
+          const resp = await fetch(url, { signal: AbortSignal.timeout(3_000) });
+          if (resp.ok) {
+            const text = (await resp.text()).trim();
+            if (text) {
+              parts.push(text);
+              contextInjected = true;
+            }
           }
-          // Always fail silently — never block the user's prompt.
+        } catch {
+          // Server not reachable — fall through to subprocess.
+        }
+
+        if (!contextInjected) {
+          try {
+            const result = await execFileAsync(
+              python,
+              [
+                wikiContextScript,
+                "--workspace", workspace,
+                "--q", userText,
+                "--k", k,
+                "--max-chars", maxChars,
+              ],
+              { encoding: "utf-8", timeout: timeoutMs }
+            );
+            const context = result.stdout.trim();
+            if (context) parts.push(context);
+          } catch (err) {
+            if (debug) {
+              try {
+                appendFileSync(debugLog,
+                  `[${new Date().toISOString()}] wiki_context.py error: ${String(err)}\n`, "utf-8");
+              } catch {}
+            }
+            // Always fail silently — never block the user's prompt.
+          }
         }
 
         if (debug) {
