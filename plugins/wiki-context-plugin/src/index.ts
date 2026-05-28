@@ -1,5 +1,5 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, writeFileSync, appendFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -72,6 +72,31 @@ export default definePluginEntry({
         if (debug) {
           try {
             writeFileSync(debugLog, `[${new Date().toISOString()}] STARTUP FAIL\n${msg}\n`, "utf-8");
+          } catch {}
+        }
+      }
+    })();
+
+    // Startup: ensure the wiki server is running — restart it if not.
+    // Uses detached + unref so the server survives OpenClaw gateway restarts;
+    // the probe prevents spawning a duplicate if it is already up.
+    void (async () => {
+      try {
+        await fetch(`http://localhost:${serverPort}/`, { signal: AbortSignal.timeout(1_500) });
+        // Any HTTP response means the server is already up — nothing to do.
+      } catch {
+        // Connection refused — server is down, spawn it.
+        const wikiPy = join(dirname(wikiContextScript), "wiki.py");
+        const child = spawn(
+          python,
+          [wikiPy, "serve", "--workspace", workspace, "--port", String(serverPort)],
+          { detached: true, stdio: "ignore" }
+        );
+        child.unref(); // let the server outlive this plugin process
+        if (debug) {
+          try {
+            appendFileSync(debugLog,
+              `[${new Date().toISOString()}] wiki server spawned (PID ${child.pid})\n`, "utf-8");
           } catch {}
         }
       }
