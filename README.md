@@ -1,93 +1,78 @@
 <div align="center">
 
-# AI Longterm Wiki Memory — OpenClaw Plugin
+# 🧬 ai-longterm-wiki-memory-OpenClaw
 
-**Semantic long-term memory for AI agents**
+### Semantic long-term memory for any AI agent, any LLM, any platform
 
-Your AI agent forgets everything between sessions. This gives it a structured, self-healing knowledge base it actually maintains — where every page is simultaneously a readable document and a searchable vector.
+[![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Tests](https://img.shields.io/badge/tests-124%20passed-brightgreen?style=flat-square)](tests/)
+[![LanceDB](https://img.shields.io/badge/LanceDB-embedded-e05d2a?style=flat-square)](https://lancedb.com)
+[![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-7c3aed?style=flat-square)](https://github.com/openclaw/openclaw)
+[![License](https://img.shields.io/badge/License-AGPL_3.0-blue?style=flat-square)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/giovannifrontera/ai-longterm-wiki-memory-OpenClaw?style=flat-square)](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw/commits)
 
-[![Version](https://img.shields.io/badge/version-3.1.2-informational)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-124%20passed-brightgreen)](tests/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![OpenClaw](https://img.shields.io/badge/works%20with-OpenClaw-purple)](https://github.com/openclaw/openclaw)
-
-[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [PDF Ingestion](#multi-source-pdf-ingestion-v20) · [Web Interface](#web-interface-v21) · [Dashboard](#dashboard-observability-v22) · [Integration](#integration) · [CLI Reference](#cli-reference)
-
----
+[Problem](#-the-problem) · [Theory](#-theoretical-framework) · [Architecture](#-three-layer-architecture) · [Features](#-features) · [Interface](#-web-interface) · [Quick Start](#-quick-start) · [Ecosystem](#-ai-wiki-ecosystem)
 
 </div>
 
-> ### 🤖 If you are an AI agent reading this repo
->
-> **Do not proceed without reading your platform's install file first.**
->
-> | You are running on… | Read this file immediately |
-> |---------------------|---------------------------|
-> | **OpenClaw** | [`AGENTS.md`](AGENTS.md) |
->
-> This file contains mandatory installation steps. Skipping them means the wiki context injection will not work and every subsequent action may silently fail.
-
-## Interface
-
-**Graph view** — the D3 force graph shows all wiki pages as nodes, coloured by category. When the agent retrieves pages to answer a prompt, the activated nodes pulse gold in real time via WebSocket.
-
-![Graph view with query-hit animation](docs/images/graph-view.svg)
-
-**Stats tab** — embedding coverage, most-queried pages, stale pages, semantic duplicate warnings, and auto-lint countdown.
-
-![Stats dashboard](docs/images/stats-tab.svg)
+> **🤖 If you are an AI agent reading this:** read [`AGENTS.md`](AGENTS.md) before proceeding. It contains mandatory installation steps — skipping them means context injection will silently fail.
 
 ---
 
-## The problem
+## 🎯 The Problem
 
-AI agents forget everything between sessions. Existing memory systems are flat — a pile of timestamped facts, not a knowledge base. When you work on recurring research (academic literature, competitive analysis, trading signals, legal cases), you need knowledge that is **organized, interconnected, and semantically searchable** — and that grows over time without human bookkeeping.
+AI agents forget everything between sessions. Existing memory systems are **flat** — a pile of timestamped facts with no structure, no interconnection, and no ability to distinguish deep domain knowledge from cross-domain principles. When you work on recurring research — academic literature, competitive analysis, long-running software projects — you need knowledge that is *organised, interconnected, semantically searchable*, and that grows over time without human bookkeeping.
 
-## What it does
-
-AI Longterm Wiki Memory gives your agent a **three-layer brain** it maintains autonomously — all layers indexed together in a single LanceDB vector space:
-
-| Layer | Directory | Contents | Who writes |
-|-------|-----------|----------|------------|
-| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per domain: concepts, research, entities | INGEST workflow |
-| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously when useful across ≥2 topics | Agent (autonomous promotion) |
-| **Identity** | `wiki/identity/` | Behavioral patterns, values, style — learned from corrections | Only `wiki.py self-reflect` |
-
-The agent ingests web pages, papers, and PDFs; retrieves by semantic meaning (not keywords); promotes knowledge autonomously between layers; detects stale or contradictory knowledge; and synthesizes new pages automatically when multiple sources support a non-obvious inference — all without corrupting the knowledge base even if a process crashes mid-operation.
-
-```
-User: "study this paper on RAG architectures"
-
-Agent: [INTENT: INGEST | WORKSPACE: research | CONFIDENCE: high]
-       → writes structured pages as .tmp files
-       → wiki.py ingest: atomic staging → production commit
-       → markdown + embeddings written in the same operation
-       → "2 pages written. Mini-lint: ok."
-       → checks promotion criteria: retrieved in ≥3 queries, cross-domain?
-       → promotes to wiki/concepts/rag.md autonomously if criteria met
-
-User: "what do you know about retrieval-augmented generation?"
-
-Agent: [INTENT: QUERY | WORKSPACE: research | CONFIDENCE: high]
-       → <wiki-context> already injected (pre-prompt hook)
-       → reads relevant pages, synthesizes with citations
-       → synthesis meets threshold → auto-saved as new wiki page
-
-User: "stop adding a summary at the end of every response"
-
-Agent: [INTENT: BEHAVIOR_FEEDBACK | CONFIDENCE: high]
-       → wiki.py behavior-log --event "no trailing summary"
-       → at session end: wiki.py self-reflect → wiki/identity/ updated
-```
+This project gives any AI agent — regardless of the underlying LLM or platform — a **three-layer external brain** it maintains autonomously. Every interaction deepens the knowledge base; no session starts from zero.
 
 ---
 
-## The core idea: wiki and vector DB as one
+## 📚 Theoretical Framework
 
-> **Karpathy's wiki pattern** ([gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) has the LLM navigate the wiki by *reading* markdown files. This breaks down at scale — the agent cannot scan dozens of pages on every query.
+### Extended Mind Thesis (Clark & Chalmers, 1998)
+If a notebook functions as reliably as biological memory in directing behaviour, it counts as part of the cognitive system (Clark & Chalmers, 1998). This project operationalises that thesis: the wiki-memory system extends the agent's effective cognitive reach beyond any single context window, functioning as a genuine component of its reasoning apparatus — not a retrieval bolt-on.
 
-This project solves that with a **dual-representation architecture**: every page has two synchronized forms.
+### Tulving's Episodic and Semantic Memory
+Tulving (1972) distinguishes *episodic memory* (time-stamped events) from *semantic memory* (general, context-independent knowledge). The three-layer architecture mirrors this: the Domain layer stores deep semantic knowledge per topic; the Identity layer stores episodic behavioural patterns; the Distilled layer manages the episodic-to-semantic transition through autonomous promotion.
+
+### Distributed Cognition (Hutchins, 1995)
+Cognition is not confined to individual minds — it is distributed across agents, tools, and artefacts in a system (Hutchins, 1995). The wiki-memory system externalises cognitive work into a distributed structure: agent, Markdown wiki, vector index, and hook system form a single cognitive unit that is more capable than any component alone.
+
+### Ebbinghaus Forgetting Curve
+Without reinforcement, information decays exponentially (Ebbinghaus, 1885). The autonomous promotion mechanism operationalises spaced repetition at the system level: knowledge retrieved frequently across multiple domains is promoted to more accessible layers; stale knowledge is flagged for review.
+
+---
+
+## 🏗 Three-Layer Architecture
+
+```mermaid
+flowchart TD
+    subgraph Domain["Domain Layer — wiki-works/topic/"]
+        D1[PDF / paper ingest]
+        D2[Web source ingest]
+        D3[Session observations]
+    end
+
+    subgraph Distilled["Distilled Layer — wiki/"]
+        DI[Cross-domain concepts\npromoted when useful across ≥2 topics\nand retrieved in ≥3 queries]
+    end
+
+    subgraph Identity["Identity Layer — wiki/identity/"]
+        ID[Behavioural patterns\nUser preferences\nSelf-reflection logs]
+    end
+
+    Domain -->|autonomous promotion| Distilled
+    Distilled -->|self-reflection at session end| Identity
+
+    H[Hook System] -->|pre-prompt| H1[wiki_context.py\nvector search → top-K injected]
+    H -->|post-tool| H2[observation capture\nfile reads · edits · commands]
+    H -->|session end| H3[session compression\nbehaviour-log → self-reflect]
+```
+
+**Core invariant:** the agent never writes directly to the wiki. Everything goes through `wiki.py`. The skill guides *when* and *why*; the scripts handle *how*.
+
+### Dual-Representation Pattern
+Every wiki page exists simultaneously in two synchronised forms:
 
 ```
   Write a wiki page
@@ -96,353 +81,201 @@ This project solves that with a **dual-representation architecture**: every page
 ┌───────────────────┐     ┌──────────────────────────┐
 │  Markdown file    │     │  LanceDB vector store     │
 │  wiki/concepts/   │◄────►  bge-m3 embeddings        │
-│  rag.md           │     │  (1024-dim, HNSW index)   │
+│  rag.md           │     │  1024-dim, HNSW index     │
 └───────────────────┘     └──────────────────────────┘
-   humans browse               LLM retrieves
-   LLM generates               semantically
+   humans browse               agent retrieves
+   agent generates             semantically
 ```
 
-Markdown and embeddings are **written atomically** and kept in sync at all times. The lint pass detects and repairs any drift.
-
-A query about *"how LLMs handle long context"* retrieves pages about *"positional encoding"* and *"sliding window attention"* — with no keyword overlap — because the meaning is close in embedding space.
+Markdown and embeddings are written **atomically** (`tmp → staging → production`) and kept in sync at all times. A crash at any point leaves the system in a detectable, recoverable state.
 
 ---
 
-## Features
+## ✨ Features
 
-### Semantic vector search
-[bge-m3](https://huggingface.co/BAAI/bge-m3) embeddings — multilingual (100+ languages), 1024-dim, HNSW index. Queries retrieve by meaning. No re-indexing step. The vector DB is the index, maintained continuously.
+### LLM-Agnostic
+Works with **any LLM or agent framework** that can read files and call bash commands. The memory backend (Python + LanceDB) is completely decoupled from the inference layer. Tested integrations: OpenClaw (Telegram, Discord, web), Claude Code, Gemini CLI, Codex, OpenCode. Switch models freely — the wiki persists unchanged.
 
-### Atomic writes — crash-safe
-Every ingest follows a `.tmp → staging LanceDB → atomic promotion` pattern. A crash leaves the system in a detectable state (`in-progress` in `wiki-session.md`). The agent recovers at the next session with no data loss, no silent corruption.
+### Semantic Vector Search
+[bge-m3](https://huggingface.co/BAAI/bge-m3) embeddings — multilingual (100+ languages), 1024-dim, HNSW index. Queries retrieve by *meaning*, not keywords. A query about *"how LLMs handle long context"* retrieves pages about *"positional encoding"* and *"sliding window attention"* with no keyword overlap — because the meaning is close in embedding space.
 
-### Pre-prompt context injection
-`wiki_context.py` runs a vector search **before every user message** and prepends a `<wiki-context>` block with the most relevant pages. This eliminates the main failure mode of skill-based approaches — the agent getting context only when it classifies a message as QUERY:
+### Pre-Prompt Context Injection
+`wiki_context.py` runs a vector search **before every user message** and prepends a `<wiki-context>` block with the top-K most relevant pages. The agent has relevant context regardless of how it classifies the message — no manual invocation required.
+
+### Multi-Source PDF Ingestion
+Any PDF from any source converges at `pdf-inbox/`:
 
 ```
-User types a message
-        │
-        ▼
-wiki_context.py → vector search
-        │
-        ▼
-<wiki-context> block prepended to the prompt
-        │
-        ▼
-Agent has relevant context — regardless of intent classification
+Telegram attachment → pdf-inbox/ → SHA-256 dedup → pdfplumber extraction
+URL (50 MB cap)    →             → atomic registry → wiki-works/*/raw/
+CLI / folder drop  →             → crash recovery  → structured pages
 ```
 
-Install for OpenClaw (one command):
+### Auto-Synthesis
+When a query response integrates ≥ 2 wiki sources, exceeds 300 tokens, and adds non-literal inference, the agent saves it as a new wiki page with embeddings. Knowledge compounds over time without human curation.
+
+### Autonomous Promotion
+Pages retrieved in ≥ 3 distinct queries across ≥ 2 topics are automatically promoted from the Domain layer to the Distilled layer — cross-domain knowledge becomes more accessible over time.
+
+### Behavioural Self-Reflection
+User corrections ("always", "never", "stop doing X") are logged via `wiki.py behavior-log`. At session end, `wiki.py self-reflect` updates `wiki/identity/` autonomously when a pattern reaches the threshold (default: 3 occurrences). The agent learns without requiring human approval of each update.
+
+### Self-Healing Lint
+
+| Issue | Detection | Repair |
+|---|---|---|
+| Broken wiki links | Regex scan `[[target]]` → no matching file | Log orphan links |
+| Orphan vectors | LanceDB IDs absent from filesystem | Auto-delete stale records |
+| File renames | `content_hash` match between DB-only and filesystem-only paths | Update path without re-embedding |
+| Semantic duplicates | Cosine similarity > 0.95 | Flag for merge; > 0.90 auto-merge candidate |
+
+### Token-Budget Index
+`index.md` respects a configurable token budget (default 4,000). When exceeded, applies reduction strategies automatically — so the agent can navigate even on small context windows.
+
+---
+
+## 🖥 Web Interface
+
 ```bash
-py scripts/setup_openclaw.py --workspace /path/to/workspace
-```
-
-### Multi-project routing
-Define multiple research domains in `wiki.config.json` with keyword lists. The agent auto-selects the right workspace from message content — no manual specification needed.
-
-### Automatic synthesis
-When a query response integrates ≥2 wiki sources, exceeds 300 tokens, and adds non-literal inference, the agent saves it as a new wiki page with embeddings. Knowledge compounds over time.
-
-### Self-healing lint
-`wiki.py lint --full` detects and repairs:
-- **Broken wiki links** (`[[page]]` with no matching file)
-- **Orphan LanceDB entries** (vectors for deleted files — auto-removed)
-- **Renames** (file moved → updates DB path without re-embedding via `content_hash`)
-- **Semantic duplicates** (cosine similarity > 0.95 across pages)
-
-### Token-budget index
-`index.md` respects a configurable token budget (default 4000). When exceeded, applies reduction strategies automatically — so the agent can navigate even on small context windows.
-
-### Observability dashboard
-A `[Stats]` tab in the web frontend gives a live view of the wiki health: pages embedded vs unembedded, stale pages (configurable threshold), top-10 most queried pages, lint status with last-run timestamp and warning count, and the auto-lint schedule. Lint can also be triggered manually from the browser.
-
-### Autonomous promotion
-When a page from `wiki-works/<topic>/` is retrieved in ≥3 distinct queries and proves relevant across ≥2 topics, the agent promotes it to `wiki/` without user confirmation — cross-domain knowledge compounds automatically.
-
-### Semantic deduplication
-`wiki.py lint --full` detects semantically similar pages via cosine similarity. Similarity ≥ 0.90 → auto-merge candidate; 0.75–0.90 → user warning. Configurable via `thresholds.dedup_auto` and `thresholds.dedup_warn`.
-
-### Behavioral self-reflection (Identity layer)
-When the user corrects the agent's behavior ("always", "never", "stop doing X"), the correction is logged with `wiki.py behavior-log`. At end of session, `wiki.py self-reflect` reads the log and autonomously updates `wiki/identity/` when a pattern reaches the threshold (default: 3 occurrences). The agent learns without human approval of each update.
-
----
-
-## Multi-source PDF ingestion *(v2.0)*
-
-Any PDF from any source converges at `pdf-inbox/` and is processed automatically.
-
-```
-┌─────────────────┐   ┌──────────────────┐   ┌───────────────────┐
-│  Telegram chat  │   │  CLI / URL       │   │  Manual file drop │
-│  (attachment)   │   │  (ingest-pdf)    │   │  (filesystem)     │
-└────────┬────────┘   └────────┬─────────┘   └────────┬──────────┘
-         │                     │                       │
-         └─────────────────────┼───────────────────────┘
-                               ▼
-                    workspace/pdf-inbox/
-                       paper.pdf
-                    .registry.json  ← SHA-256 hash per file
-                               │
-                    wiki.py scan-inbox
-                               │
-                    wiki_pdf_watcher.py
-                       extract_text (pdfplumber)
-                               │
-                               ▼
-              wiki-works/<project>/raw/paper.md
-              (frontmatter: source: pdf, original, extracted_at)
-                               │
-                               ▼
-                    Agent structures into .tmp pages
-                               │
-                               ▼
-                    wiki.py ingest → wiki/ + LanceDB
-```
-
-**How change detection works:** SHA-256 hash per file. Same hash + `deposited` → skip. Different hash → reprocess. Status `pending` written before extraction begins — a crash leaves the registry recoverable.
-
-**Commands:**
-```bash
-# Local file
-wiki.py ingest-pdf --workspace <path> --file paper.pdf
-
-# Remote URL (50 MB cap — SSRF-protected)
-wiki.py ingest-pdf --workspace <path> --file https://arxiv.org/pdf/2401.00001
-
-# Scan entire inbox — idempotent, safe for cron
-wiki.py scan-inbox --workspace <path>
-```
-
-**Telegram / OpenClaw:** no new plugin needed. The agent rule in `AGENTS_PATCH.md` covers it:
-> When user sends a PDF → call `wiki.py ingest-pdf --workspace <path> --file <attachment_path>`
-
-**Scanned PDFs** (no selectable text) are flagged with `status: failed` in the registry and skipped on future scans — no infinite retry loops.
-
----
-
-## Web Interface *(v2.1)*
-
-A read-only web frontend for exploring the wiki in a browser — without touching any workflow.
-
-```
-py scripts/wiki.py serve --workspace /path/to/workspace [--port 7331] [--no-auth]
+python scripts/wiki.py serve --workspace /path/to/workspace [--port 7331]
 ```
 
 Open `http://localhost:7331`.
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  AI Wiki Memory   [wiki] [research] [tutti]    🔍  ● live │
-├───────────────────────────┬──────────────────────────────┤
-│                           │  # Page Title                │
-│    KNOWLEDGE GRAPH        │  concept · research · date   │
-│    (D3 force-directed)    │  ──────────────────────────  │
-│                           │  [rendered markdown]         │
-│  ● entities (blue)        │                              │
-│  ● concepts (green)       │  ── Outgoing links ──        │
-│  ● synthesis (violet)     │  ── Incoming links ──        │
-│  ── explicit link         │  ── Similar pages ──         │
-│  ╌╌ semantic similarity   │     embedding (87%)          │
-└───────────────────────────┴──────────────────────────────┘
-```
+### Graph View
+A D3.js force-directed graph shows all wiki pages as nodes:
+- **Node colour** — category (entities: blue · concepts: green · synthesis: violet · identity: gold)
+- **Node size** — proportional to degree (connections)
+- **Explicit edges** — `[[wiki-link]]` references → solid arrows
+- **Semantic edges** — cosine similarity ≥ 0.65 → dashed lines
+- **Live updates** — WebSocket pushes `graph_update` on any file change; node positions preserved
+- **Query-hit animation** — retrieved nodes pulse gold→red for 4 seconds in real time
+- **Page panel** — click any node → rendered markdown + outgoing/incoming links + similar pages with similarity bars
 
-**Features:**
-- **Force-directed graph** — nodes sized by degree, colored by category (entities/concepts/synthesis), labels on all nodes
-- **Explicit edges** — `[[wiki-link]]` references rendered as solid arrows
-- **Semantic edges** — LanceDB cosine similarity ≥ 0.65 rendered as dashed lines
-- **Live updates** — WebSocket pushes `graph_update` on any file change; graph transitions smoothly without snapping node positions
-- **Query hit animation** — when `wiki.py query` runs, the retrieved nodes pulse gold→red for 4 seconds
-- **Page panel** — click any node → rendered markdown, outgoing/incoming links, similar pages with similarity bars
-- **Project tabs** — filter graph to one workspace at a time
-- **Password protection** — JWT cookie auth (7-day session); set via `wiki.config.json` or `WIKI_PASSWORD` env var; bypass with `--no-auth` for local use
+### Stats Dashboard
 
-**Config (optional):**
-```json
-{
-  "frontend": {
-    "password": "your-password",
-    "session_days": 7
-  }
-}
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐
+│ 47 pages │  │ 312 chunk│  │ 94% cov. │  │ 3 stale │
+└──────────┘  └──────────┘  └──────────┘  └─────────┘
+
+Top queried            Lint status
+─────────────          ───────────────────────────────
+rag.md      12q        Last run: 2026-05-23
+openai.md    8q        0 errors · 2 warnings · [Run now]
+
+Auto-lint: every 24h · next: 2026-05-24 08:15
 ```
 
-**Public exposure with ngrok:**
-```bash
-py scripts/wiki.py serve --workspace . --host 0.0.0.0
-ngrok http 7331
-```
+**REST endpoints:**
 
-**The frontend is strictly read-only for wiki content.** All wiki workflows (ingest, query, lint) continue to function identically whether the server is running or not.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/graph` | All nodes + edges as JSON |
+| `GET` | `/api/page/{path}` | Page content + metadata + links |
+| `GET` | `/api/stats` | KPIs, lint status, query log |
+| `POST` | `/api/lint` | Trigger lint run (409 if busy) |
+| `WS` | `/ws` | Live graph + query-hit events |
+
+**Auth:** JWT cookie (7-day session), password set via `wiki.config.json` or `WIKI_PASSWORD` env. Bypass with `--no-auth` for local use.
 
 ---
 
-## Dashboard Observability *(v2.2)*
+## 🔬 Technical Deep-Dive
 
-A `[Stats]` tab built into the web server shows the health of the wiki at a glance — no CLI commands needed.
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  AI Wiki Memory  [Graph] [Stats]          🔍  ● live     │
-├──────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  │
-│  │ 47 pages │  │ 312 chunk│  │ 94% cov. │  │ 3 stale │  │
-│  └──────────┘  └──────────┘  └──────────┘  └─────────┘  │
-│                                                          │
-│  Top queried                  Lint status                │
-│  ─────────────────            ─────────────────────────  │
-│  rag.md           12q         Last run: 2026-05-23       │
-│  openai.md         8q         0 errors · 2 warnings      │
-│                               [Run lint now]             │
-│  Auto-lint: every 24h · next: 2026-05-24 08:15           │
-└──────────────────────────────────────────────────────────┘
-```
-
-**What it shows:**
-- **4 KPI cards** — total pages, total chunks, embedding coverage %, stale pages count
-- **Top queried** — top-10 pages by query frequency, aggregated from `.wiki-query-log.jsonl`
-- **Stale pages** — pages not modified in more than `thresholds.staleness_days` (default 90 days)
-- **Unembedded pages** — files present on disk but missing from LanceDB
-- **Lint status** — last run timestamp, error count, warning count (from `.wiki-lint-status.json`)
-- **Auto-lint schedule** — next scheduled run if `frontend.lint_interval_hours` is configured
-
-**Lint trigger:** The "Run lint now" button calls `POST /api/lint`. Returns 409 if a lint run is already in progress.
-
-**Auto-lint:** Add to `wiki.config.json` to run lint automatically on a schedule:
-```json
-{
-  "frontend": {
-    "lint_interval_hours": 24
-  }
-}
-```
-The scheduler starts with the server. If omitted, auto-lint is disabled and the button remains available for manual runs.
-
-**REST endpoints (auth-protected):**
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/stats` | Returns all observability data as JSON |
-| `POST /api/lint` | Triggers `wiki.py lint --full`; 409 if busy |
-
----
-
-## Architecture
+### Filesystem Layout
 
 ```
 workspace/
-├── skills/
-│   └── wiki-core.md          ← permanent skill: intent classification, workflows (v3)
-├── wiki-session.md           ← live session state (generated by wiki.py)
-├── wiki.config.json          ← configuration
+├── skills/wiki-core.md          ← agent skill: intent classification + workflows
+├── wiki-session.md              ← live session state (ok | in-progress | needs-repair)
+├── wiki.config.json             ← configuration
 ├── scripts/
-│   ├── wiki.py               ← unified CLI entry point (11 commands)
-│   ├── wiki_context.py       ← pre-prompt context injector (hook)
-│   ├── wiki_pdf_watcher.py   ← PDF inbox scanner (hash detection + pdfplumber)
-│   ├── wiki_embed.py         ← boundary-aware chunking + bge-m3 embeddings
-│   ├── wiki_lancedb.py       ← LanceDB ops (upsert, staging, rename detection)
-│   ├── wiki_index.py         ← token-budget index generation
-│   ├── wiki_graph.py         ← node/edge builder (filesystem + LanceDB, 30s cache)
-│   └── wiki_server.py        ← FastAPI server: REST, WebSocket, JWT auth, stats/lint endpoints
-├── frontend/
-│   └── index.html            ← SPA: D3.js graph + page panel + WebSocket client
-├── pdf-inbox/                ← all PDF sources converge here
-│   └── .registry.json        ← hash + status per PDF (atomic write)
-├── .wiki-lint-status.json    ← last lint result (written atomically by cmd_lint)
-├── .wiki-behavior-log.jsonl  ← behavioral corrections log (appended by behavior-log)
-├── wiki/                     ← distilled cross-domain knowledge + identity layer
-│   ├── entities/             ← people, tools, organizations (cross-domain)
-│   ├── concepts/             ← theories, strategies, definitions (cross-domain)
-│   ├── synthesis/            ← cross-source inferences (cross-domain)
-│   └── identity/             ← behavioral patterns (written only by self-reflect)
-├── wiki-works/               ← deep domain knowledge (permanent, per topic)
-│   └── <topic>/
-│       ├── raw/              ← raw fetched sources and extracted PDFs
-│       ├── entities/
-│       ├── concepts/
-│       └── synthesis/
-└── memory/
-    └── lancedb/              ← vector database — all three layers indexed together
+│   ├── wiki.py                  ← unified CLI (11 commands)
+│   ├── wiki_context.py          ← pre-prompt hook
+│   ├── wiki_pdf_watcher.py      ← PDF inbox scanner (SHA-256 + pdfplumber)
+│   ├── wiki_embed.py            ← boundary-aware chunking + bge-m3
+│   ├── wiki_lancedb.py          ← LanceDB ops (upsert, staging, rename detection)
+│   ├── wiki_index.py            ← token-budget index generation
+│   ├── wiki_graph.py            ← node/edge builder (30s cache)
+│   └── wiki_server.py           ← FastAPI: REST, WebSocket, JWT, stats/lint
+├── frontend/index.html          ← SPA: D3.js + page panel + WebSocket client
+├── pdf-inbox/.registry.json     ← SHA-256 hash + status per PDF (atomic write)
+├── wiki/                        ← Distilled + Identity layers
+│   ├── concepts/ entities/ synthesis/
+│   └── identity/                ← written only by wiki.py self-reflect
+├── wiki-works/topic/            ← Domain layer (permanent, per topic)
+│   └── raw/ concepts/ entities/ synthesis/
+└── memory/lancedb/              ← unified vector space for all three layers
 ```
 
-**Core invariant:** The agent never writes directly to the wiki. Everything goes through `wiki.py`. The skill guides *when* and *why*; the scripts handle *how*.
+### LanceDB Schema
+
+```
+wiki_pages table:
+  id            STRING PRIMARY KEY    -- relative path from workspace root
+  title         STRING
+  category      STRING                -- entities | concepts | synthesis | identity | raw
+  content       STRING                -- markdown body (truncated, 512-token chunks)
+  project       STRING                -- source domain/workspace
+  last_modified FLOAT                 -- Unix timestamp (drives staleness detection)
+  vector        FLOAT[1024]           -- bge-m3 embedding (HNSW index)
+
+staging_wiki_pages table:          -- identical schema; vectors promoted atomically
+```
+
+### Chunking Strategy
+Pages are split using the bge-m3 native tokenizer. Boundaries respect `##` and `###` headings — chunks never cut mid-section. Pages under 1,500 tokens are embedded whole; larger pages use 512-token chunks with 64-token overlap. Upsert deletes all existing chunks for a path before inserting new ones — no orphan chunks when a page changes.
+
+### CLI Reference
+
+```
+wiki.py ingest         --workspace <path> --pages <p1.tmp,...> --log <str>
+wiki.py query          --workspace <path> --q <string> [--k 5]
+wiki.py lint           --workspace <path> [--full]
+wiki.py index          --workspace <path>
+wiki.py rebuild        --workspace <path>
+wiki.py scan-inbox     --workspace <path>
+wiki.py ingest-pdf     --workspace <path> --file <local-path|url>
+wiki.py serve          --workspace <path> [--host] [--port 7331] [--no-auth]
+wiki.py behavior-log   --workspace <path> --event "<correction>"
+wiki.py self-reflect   --workspace <path>
+wiki.py session-update --workspace <path> --op <type> --status <ok|failed|...>
+
+wiki_context.py        --workspace <path> --q <string> [--k 3] [--max-chars 600]
+```
+
+All commands output structured JSON to stdout.
 
 ---
 
-## Integration
+## 🏛 Architectural Decisions
 
-Works with any agent that can read files and call bash commands. This repo provides first-class support for OpenClaw.
+**LLM-agnostic backend:** The Python/LanceDB stack has zero dependencies on any specific inference provider. The agent skill (`wiki-core.md`) guides intent classification and workflow routing using natural language — any LLM that can follow instructions can use it. This is a deliberate design choice: the memory system outlasts any particular model generation.
 
-### Claude Code
+**Markdown-first over pure vector:** Markdown files are human-readable, Git-trackable, and editable without special tooling. The vector index is a derived artefact that can always be rebuilt from source via `wiki.py rebuild`. Researchers retain full auditability and manual curation capability.
 
-For the native Claude Code MCP integration (recommended), see the dedicated repo: [`ai-longterm-wiki-memory-ClaudeCode`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode).
+**Staging table for atomic ingest:** Vectors are written to `staging_wiki_pages` first. Only `promote_staging()` moves them to `wiki_pages`. A crash leaves staging populated; the next session clears it and logs the event — no silent data corruption.
 
-> This repo focuses on the OpenClaw plugin. The `wiki_context.py` script is still shared — both integrations call the same Python backend.
-
-### OpenClaw
-
-[OpenClaw](https://github.com/openclaw/openclaw) connects Telegram, Discord, and web to AI agents with bash/file/browser access on your filesystem.
-
-**Agent-driven setup (recommended):** provide the repo link in chat and ask the OpenClaw agent to install. It reads `AGENTS.md` and runs:
-```bash
-py scripts/setup_openclaw.py --workspace /absolute/path/to/workspace
-```
-The script auto-detects the OpenClaw config file and injects the plugin entry. Pass `--config /path/to/config.json` if auto-detection fails.
-
-**Manual setup:**
-```bash
-cd plugins/wiki-context-plugin
-npm install && npm run build
-```
-
-Add to OpenClaw config:
-```json
-{
-  "plugins": [
-    {
-      "id": "wiki-context-plugin",
-      "path": "/absolute/path/to/ai-wiki-system/plugins/wiki-context-plugin",
-      "config": {
-        "workspace": "/absolute/path/to/workspace",
-        "wikiContextScript": "/absolute/path/to/scripts/wiki_context.py",
-        "pythonExecutable": "python",
-        "k": 3
-      }
-    }
-  ]
-}
-
-### What the agent does automatically
-
-| User says | Agent does |
-|-----------|-----------|
-| URL / "study this" / file attachment | INGEST: fetch → structure → atomic write + embed → evaluate promotion |
-| PDF via Telegram / CLI / URL | INGEST-PDF: inbox → extract → deposit in raw/ → structure |
-| Direct question / "explain" / "what do you know about" | QUERY: `<wiki-context>` already injected → read pages → synthesize → auto-save if threshold met |
-| "check the wiki" / "maintenance" / "broken links" | LINT: broken links, orphans, renames, semantic duplicates |
-| "always", "never", "stop doing X" (behavioral correction) | BEHAVIOR_FEEDBACK: log correction → self-reflect at session end → `wiki/identity/` updated |
-| Ambiguous | Asks one clarifying question, never guesses |
-
-The agent always emits a classification line before acting — you can correct it before execution:
-```
-[INTENT: INGEST | WORKSPACE: research | CONFIDENCE: high]
-```
-
-### Session state
-
-`wiki-session.md` (managed exclusively by `wiki.py`) tracks:
-- Status: `ok` / `in-progress` / `needs-repair` / `partial-failure`
-- Last operation: type, timestamp, detail
-- Active workspace and page count
-
-If the agent finds `in-progress` at session start, it warns before doing anything.
+**Identity layer write-protected:** `wiki/identity/` is written *only* by `wiki.py self-reflect`, never directly by the agent. This prevents real-time feedback loops where current behaviour immediately reinforces itself, ensuring genuine long-term pattern stabilisation.
 
 ---
 
-## Quick Start
+## ⚠️ Known Limitations
+
+- **No transactional semantics:** LanceDB does not support rollback. Crashes between vector write and Markdown write create orphan vectors — resolved by the next lint run.
+- **Single-machine:** The current architecture targets a single researcher's local machine. Shared team wikis require a centralised LanceDB instance or REST API layer.
+- **Scanned PDFs:** Image-only PDFs (no selectable text) are flagged `status: failed` in the registry and skipped on future scans — no OCR support currently.
+- **Hook latency:** The first SessionStart hook after a large ingest may be slow (cold LanceDB HNSW index construction).
+
+---
+
+## 🚀 Quick Start
 
 ### Requirements
 
 - Python 3.10+
-- ~2 GB disk (BAAI/bge-m3 model, downloaded automatically on first run)
+- ~2 GB disk (BAAI/bge-m3, downloaded automatically on first run)
 
 ### Install
 
@@ -456,299 +289,92 @@ pip install -r requirements.txt
 
 ```bash
 cp wiki.config.json my-workspace/wiki.config.json
-# Edit: set workspace path, add your projects and keywords
+# Edit: set workspace path, projects, keywords
 ```
 
-Minimal config:
+Minimal `wiki.config.json`:
 ```json
 {
-  "workspace": "/path/to/your/workspace",
-  "pdf_inbox": {
-    "project_default": "research"
-  },
+  "workspace": "/path/to/workspace",
   "projects": {
     "research": {
       "path": "wiki-works/research",
-      "keywords": ["paper", "study", "article", "review"]
+      "keywords": ["paper", "study", "review", "article"]
     }
   },
+  "lancedb": { "path": "memory/lancedb", "embedding_model": "BAAI/bge-m3" },
   "thresholds": {
     "index_token_budget": 4000,
     "staleness_days": 90,
-    "similarity_merge": 0.95,
-    "similarity_orphan": 0.50,
     "synthesis_min_tokens": 300,
-    "synthesis_min_sources": 2,
-    "chunk_size_tokens": 512,
-    "chunk_overlap_tokens": 64,
-    "page_chunk_threshold_tokens": 1500,
-    "quality_filter_min_score": 6
-  },
-  "lancedb": {
-    "path": "memory/lancedb",
-    "embedding_model": "BAAI/bge-m3"
+    "synthesis_min_sources": 2
   }
 }
 ```
 
-> **`pdf_inbox.project_default`** — where PDFs go when the filename doesn't match any project's keywords. If omitted, falls back to the first project in config.
-
-### Initialize and test
+### Initialise and Test
 
 ```bash
-py scripts/wiki.py rebuild --workspace my-workspace/
+python scripts/wiki.py rebuild --workspace my-workspace/
 pytest tests/ -v
 # Expected: 124 passed
 ```
 
-### Dependencies
+### OpenClaw Integration
 
-| Package | Purpose |
-|---------|---------|
-| `lancedb ≥ 0.6.0` | Vector database — stores bge-m3 embeddings with staging table for atomic ingest |
-| `sentence-transformers ≥ 3.0.0` | Loads BAAI/bge-m3 locally — multilingual chunked embedding |
-| `pyarrow ≥ 14.0.0` | Columnar storage for LanceDB batch operations |
-| `pandas ≥ 2.0.0` | DataFrame ops for lint statistics and rename detection |
-| `pdfplumber ≥ 0.11.0` | PDF text extraction — used by `wiki_pdf_watcher.py` |
-| `pyyaml ≥ 6.0` | Parses `wiki.config.json` and YAML frontmatter |
-| `requests ≥ 2.31.0` | HTTP fetching during source ingestion |
-| `pytest ≥ 8.0.0` | Test runner — 124 tests covering all workflows |
-| `fastapi ≥ 0.111.0` | Web server for the browser frontend |
-| `uvicorn[standard] ≥ 0.29.0` | ASGI server — runs FastAPI with WebSocket support |
-| `watchfiles ≥ 0.21.0` | Async file watcher — triggers live graph updates |
-| `python-jose[cryptography] ≥ 3.3.0` | JWT cookie auth for the frontend |
-| `httpx ≥ 0.27.0` | Async HTTP client (test only) |
+```bash
+# Agent-driven setup (recommended — ask the agent to install)
+python scripts/setup_openclaw.py --workspace /absolute/path/to/workspace
 
----
-
-## CLI Reference
-
-```
-wiki.py <command> [arguments]
-
-  ingest         --workspace <path> --pages <p1.tmp,p2.tmp,...> --log <str>
-  query          --workspace <path> --q <string> [--k 5]
-  lint           --workspace <path> [--full]
-  index          --workspace <path>
-  rebuild        --workspace <path>
-  session-update --workspace <path> --op <type>
-                   --status <ok|failed|in-progress|partial-failure> [--detail <json>]
-  scan-inbox     --workspace <path>
-  ingest-pdf     --workspace <path> --file <local-path|url>
-  serve          --workspace <path> [--host 127.0.0.1] [--port 7331] [--no-auth]
-  behavior-log   --workspace <path> --event "<canonical correction phrase>"
-  self-reflect   --workspace <path>
-
-wiki_context.py  (hook — outputs <wiki-context> block to stdout)
-  --workspace <path>  --q <string>  [--k 3]  [--max-chars 600]
+# Manual
+cd plugins/wiki-context-plugin && npm install && npm run build
 ```
 
-Every command outputs JSON to stdout:
+Add to OpenClaw config:
 ```json
-{ "status": "ok",   "op": "ingest",     "pages_written": 2, "mini_lint": "ok" }
-{ "status": "ok",   "op": "scan-inbox", "processed": 1, "skipped": 0, "failed": 0,
-  "deposited": ["wiki-works/research/raw/paper.md"], "failures": [] }
-{ "status": "error","code": "lock_exists", "message": "...", "recoverable": true }
+{
+  "plugins": [{
+    "id": "wiki-context-plugin",
+    "path": "/absolute/path/to/plugins/wiki-context-plugin",
+    "config": {
+      "workspace": "/absolute/path/to/workspace",
+      "wikiContextScript": "/absolute/path/to/scripts/wiki_context.py",
+      "pythonExecutable": "python",
+      "k": 3
+    }
+  }]
+}
 ```
 
----
-
-## How It Works
-
-**Chunking** — Pages split using the bge-m3 native tokenizer. Boundaries respect `##` and `###` headings — chunks never cut mid-section. Pages under 1500 tokens are embedded whole; larger pages are chunked at 512 tokens with 64-token overlap.
-
-**Upsert semantics** — `upsert(path, chunks)` deletes all existing chunks for that path before inserting new ones. This prevents orphan chunks when a page changes chunk count.
-
-**Rename detection** — During lint, compares `content_hash` between DB-only paths and filesystem-only paths. Matching hashes = rename → path updated in DB without re-embedding.
-
-**Staging table** — Ingest writes vectors to `staging_wiki_pages` first. Only `promote_staging()` moves them to `wiki_pages`. A crash leaves staging populated; the next session clears it and logs the event.
-
-**PDF crash recovery** — Status `pending` is written to `.registry.json` before extraction begins. A mid-operation crash leaves `pending`, which triggers reprocessing on the next scan.
+For other agent integrations (Claude Code, Gemini CLI, Codex), see [`docs/integrations/`](docs/).
 
 ---
 
-## Comparison with Karpathy's pattern
+## 🌐 AI-Wiki Ecosystem
 
-| Dimension | Karpathy's pattern | AI Longterm Wiki Memory |
-|-----------|-------------------|------------------------|
-| **Form** | Conceptual pattern — prose + guidelines | Full Python implementation with CLI |
-| **Retrieval** | LLM reads/scans markdown files | Semantic vector search — LLM never scans files |
-| **Wiki + vectors** | Separate concerns | One atomic operation: write page = write embeddings |
-| **Crash safety** | Not addressed | Atomic `.tmp → staging → promotion` pipeline |
-| **Multi-project** | Single wiki | Routed workspaces via `wiki.config.json` |
-| **PDF ingestion** | Not addressed | Multi-source: Telegram, URL, CLI, folder drop |
-| **Knowledge compounding** | Query answers stay in chat | Auto-synthesis + autonomous promotion across three layers |
-| **Lint** | Basic health check concept | Self-healing: orphan vectors, semantic duplicates, renames |
-| **Context injection** | Not addressed | `wiki_context.py` pre-injects relevant pages before every prompt |
-| **Behavioral learning** | Not addressed | `behavior-log` + `self-reflect` → `wiki/identity/` updated autonomously |
-| **Visualization** | Not addressed | Interactive D3 graph with live WebSocket updates |
-| **Languages** | English-focused | Multilingual — bge-m3 supports 100+ languages |
-| **Testing** | None | 106 automated tests |
+This project is part of a coherent research toolchain for AI-augmented academic knowledge management:
+
+| Project | LLM | Role |
+|---|---|---|
+| **ai-longterm-wiki-memory-OpenClaw** ← *you are here* | Any (LLM-agnostic) | Persistent memory for any agent via OpenClaw, Telegram, Discord, web |
+| [ai-longterm-wiki-memory-ClaudeCode](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Claude | Native Claude Code integration — MCP + hooks |
+| [ai-wiki-graph-RAG-lms](https://github.com/giovannifrontera/ai-wiki-graph-RAG-lms) | Anthropic / OpenAI | LTI 1.3 backend for Moodle, Canvas, Blackboard, Sakai, Open edX |
+| [academic-PRISMA-research-workflow](https://github.com/giovannifrontera/academic-PRISMA-research-workflow) | Claude | Systematic review automation — feeds evidence-based content into the wiki |
 
 ---
 
-## Documentation
+## 📖 References
 
-| File | Contents |
-|------|----------|
-| [`AGENTS.md`](AGENTS.md) | Agent install instructions for OpenClaw |
-| [`DESIGN.md`](DESIGN.md) | Full architecture, workflow specs, LanceDB schema, conflict resolution |
-| [`SPEC.md`](SPEC.md) | Implementation spec, error states table, integration detail |
-| [`skills/wiki-core.md`](skills/wiki-core.md) | The skill file to install in your agent |
-| [`AGENTS_PATCH.md`](AGENTS_PATCH.md) | *(legacy)* Usage instructions — now auto-injected by setup scripts |
-| [`README.it.md`](README.it.md) | Documentazione in italiano |
-
----
-
-## Changelog
-
-### v3.1.2 — 2026-05-27
-
-Internal refactor and test improvements. No functional changes to the OpenClaw plugin.
-
-### v3.1.1 — 2026-05-26
-
-**`wiki_context.py` robustness on Windows**
-
-- **fix: stdout encoding on Windows** — Added `sys.stdout.reconfigure(encoding="utf-8")` at startup. Python on Windows defaults to CP1252, which could cause the hook output to be silently discarded.
-- **fix: empty-query early return** — If `--q` and the `CLAUDE_USER_PROMPT` env var are both empty, the script exits immediately without running an embedding search.
-- **refactor: `--q` now optional** — `--q` defaults to `""` instead of `required=True`. The env var is the primary source; `--q` remains supported for direct invocations.
-
-### v3.1.0 — 2026-05-25
-
-**Installation robustness + new CLI commands + OpenClaw tool + wiki-setup skill**
-
-- **feat: `process-raw` subcommand** — `wiki.py process-raw --workspace <path> [--project <name>]` bulk-promotes files from `wiki-works/*/raw/` to the index after a PDF scan. Previously required manual `.tmp` workaround.
-- **fix: `ingest-pdf` same-path crash** — `shutil.copy2(src, dest)` when `src == dest` raised `PermissionError: [WinError 32]` on Windows. Now guarded with `src.resolve() != dest.resolve()`.
-- **feat: OpenClaw `wiki_process_raw` tool** — the TypeScript plugin exposes `wiki_process_raw` as a callable tool from chat. Agents can trigger bulk raw promotion without leaving the conversation.
-- **feat: OpenClaw startup Python check** — the plugin validates that the configured Python can import `lancedb` at startup and logs a visible warning if not.
-- **feat: `wiki-setup` rigid skill** — `skills/wiki-setup.md` guides any agent through full OpenClaw installation step by step.
-- **docs: Windows Store Python troubleshooting** — `docs/install-openclaw.md` documents the `py` launcher issue and how to use the absolute Python path.
-- **AGENTS.md**: `wiki.config.json` template updated to complete schema (was incomplete — missing `workspace`, `projects`, `thresholds`).
-
-**Testing:** 116 tests, all green.
-
-### v3.0.1 — 2026-05-24
-
-**Architecture correction + node animation fix + UI mockups**
-
-- **Architecture corrected**: v3.0.0 incorrectly removed the promotion mechanism and limited `wiki/` to identity only. Correct design: `wiki-works/<topic>/` = permanent domain knowledge; `wiki/` = cross-domain distilled knowledge (autonomously promoted); `wiki/identity/` = behavioral patterns (self-reflect). All layers indexed together in LanceDB.
-- **fix: node animation** — `wiki_context.py` (the hook that runs on every prompt) now writes retrieved page paths to `.wiki-query-log.jsonl`. The server's WebSocket watcher picks these up and broadcasts `query_hit` to the frontend, which animates the activated nodes gold in real time.
-- **UI mockups**: SVG illustrations of the graph view (with query-hit animation) and the Stats tab added to the README.
-- All human-facing docs (README, DESIGN, ROADMAP, AGENTS.md, skills) updated to reflect the corrected architecture.
-
-### v3.0.0 — 2026-05-24
-
-**Three-layer brain + Autonomous Promotion + Semantic Deduplication + Self-Reflection**
-
-- **Three-layer architecture**: `wiki-works/<topic>/` stores permanent deep knowledge per domain. `wiki/` holds cross-domain distilled knowledge, promoted autonomously by the agent. `wiki/identity/` stores behavioral patterns learned from corrections. All three layers are indexed together in LanceDB — one unified vector space.
-- **Autonomous promotion**: the agent promotes pages from `wiki-works/` to `wiki/` without user confirmation when knowledge is cross-domain (relevant in ≥2 topics, retrieved in ≥3 queries).
-- **Semantic deduplication**: `lint --full` detects semantic duplicates via cosine similarity. Similarity ≥ 0.90 → auto-merge candidate. 0.75–0.90 → warning. Configurable via `thresholds.dedup_auto` and `thresholds.dedup_warn`.
-- **Autonomous self-reflection**: `wiki.py behavior-log` logs behavioral corrections. `wiki.py self-reflect` autonomously updates `wiki/identity/` when a pattern exceeds the threshold (`self_reflection.correction_threshold`, default 3). No human approval required.
-
-### v2.3.0 — 2026-05-24
-
-**Agent-driven installation**
-
-- `AGENTS.md` — install instructions and full usage protocol inline — no separate patch file needed
-- `scripts/setup_openclaw.py` — one-command OpenClaw setup: auto-detects config in 5 standard locations (Windows AppData, Linux XDG, home, local), injects plugin entry atomically, idempotent
-- `setup_openclaw.py` injects usage instructions into the workspace `AGENTS.md` automatically after setup — idempotent via `<!-- ai-wiki-system:usage-start -->` sentinel marker
-
-**lint improvements**
-
-- `exclude_from_index` support in `cmd_lint`: pages matching configured patterns are filtered from LanceDB indexing; patterns use `fnmatch` (explicit, not recursive glob)
-- Duplicate filename detection in `cmd_lint --full`: warns when two pages share the same basename across different directories
-- `wiki_context.py`: reads `chunk_text` directly from LanceDB instead of re-reading files on every query — eliminates redundant disk I/O
-
-**Testing:** 92 tests, all green (unchanged)
-
----
-
-### v2.2.0 — 2026-05-23
-
-**New: Dashboard Observability** (Stats tab)
-
-- `GET /api/stats` — returns summary KPIs: total pages, embedded pages, stale pages (≥7 days), unembedded pages, top-10 queried pages, lint status and auto-lint schedule
-- `POST /api/lint` — triggers `wiki.py lint` in a subprocess; returns 409 if a lint run is already in progress
-- Auto-lint asyncio scheduler: reads `frontend.lint_interval_hours` from `config.yaml`; runs lint automatically in the background; exposes `next_run_iso` in `/api/stats`
-- `cmd_lint` writes `.wiki-lint-status.json` atomically (tmp → rename) after every lint run, recording `timestamp`, `warnings`, `errors`, `exit_code`
-- Frontend `[Stats]` tab: 4 KPI cards (Pages, Embedded, Stale, Unembedded), top-queried list (capped at 10), lint trigger button with 409 feedback
-
-**Testing:** 10 new tests — **92 total, all green**
-
----
-
-### v2.1.0 — 2026-05-22
-
-**New: Web interface** (`wiki.py serve`)
-
-- `scripts/wiki_graph.py` — builds nodes + edges from filesystem and LanceDB; 30-second cache with dirty flag; `get_page_detail()` with path traversal prevention
-- `scripts/wiki_server.py` — FastAPI app: `/api/graph`, `/api/page/{path}`, WebSocket `/ws`, JWT cookie auth; async file watcher (watchfiles) and query-log tail watcher
-- `frontend/index.html` — zero-build SPA: D3.js force-directed graph, page panel with rendered markdown (DOMPurify sanitized), live graph updates preserving node positions, query-hit pulse animation
-- New CLI command: `wiki.py serve --workspace <path> [--host] [--port 7331] [--no-auth]`
-- `wiki.py query` now appends to `.wiki-query-log.jsonl` — picked up by the server for live node animation
-
-**Robustness (post-review)**
-- `_query_log_watcher`: `pos = f.tell()` fixes race condition that caused silent query-hit misses
-- JWT signing key derived via HMAC from password — never the raw password string
-- `httponly=True` on session cookie — reduces XSS surface
-- `sys.path.insert` moved to module level in `wiki_server.py`
-- `fetchGraph()` preserves D3 `x/y/vx/vy` on existing nodes — no position snap on live updates
-
-**Testing:** 26 new tests (22 frontend-specific + 2 path traversal + 2 WebSocket) — **82 total, all green**
-
----
-
-### v2.0 — 2026-05-22
-
-**New: Multi-source PDF ingestion**
-- `scripts/wiki_pdf_watcher.py` — SHA-256 hash change detection, pdfplumber extraction, atomic registry, crash recovery via `pending` status
-- New CLI: `scan-inbox` and `ingest-pdf --file <path|url>` (50 MB cap, path sanitization)
-- `pdf-inbox/` convergence point — Telegram, CLI, URL, and manual drops all unified
-- No new OpenClaw plugin needed for Telegram PDF attachments
-- `partial-failure` added as valid session-update status
-
-**Robustness fixes (pre-release review)**
-- `cmd_ingest`: suffix-only `.tmp` strip in `rel_final`; `sys.exit(1)` on lock failure
-- `cmd_ingest_pdf`: 50 MB download cap; filename path-traversal protection
-- `cmd_session_update`: structured error on malformed JSON `--detail`
-- `deposited` list now contains full relative paths, not bare filenames
-
-**Testing:** 21 new unit tests for `wiki_pdf_watcher` — 56 total, all green
-
----
-
-### v1.1.1 — 2026-05-21
-
-**Bug fixes — Python core**
-- **[CRITICAL]** `wiki_lancedb.py`: `table_names()` deprecated — fixed to `.list_tables().tables`
-- **[HIGH]** `wiki_workflows.py` `cmd_ingest`: mid-loop `shutil.move` failure left files without vectors — tracked and reversed on exception
-- **[MEDIUM]** `cmd_lint`: rename detection scoped to `wiki/` and `wiki-works/` only
-
-**Bug fixes — OpenClaw plugin**
-- **[CRITICAL]** `src/index.ts`: `api.getConfig()` doesn't exist — fixed to `api.config`
-- **[HIGH]** Build output now copied to plugin root for correct OpenClaw resolution
-
----
-
-### v1.1.0 — 2026-05-21
-
-**New:** `scripts/wiki_context.py` — pre-prompt context injection. Runs a vector search before every user message and prepends `<wiki-context>`. Eliminates instruction drift as a failure mode.
-
-**Bug fixes**
-- **[CRITICAL]** `wiki_index.py`: `rebuild_index()` crashed with `NameError` on every call — `wiki_dir` added as explicit parameter
-- **[MEDIUM]** `cmd_index`: `FileNotFoundError` on fresh workspaces — fixed with `os.makedirs`
-
----
-
-## License
-
-AGPL-3.0 — requires anyone who distributes or runs the software as a service to share the source code.
+1. Clark, A., & Chalmers, D. (1998). The extended mind. *Analysis*, 58(1), 7–19. https://doi.org/10.1093/analys/58.1.7
+2. Tulving, E. (1972). Episodic and semantic memory. In E. Tulving & W. Donaldson (Eds.), *Organization of Memory* (pp. 381–403). Academic Press.
+3. Hutchins, E. (1995). *Cognition in the Wild*. MIT Press.
+4. Ebbinghaus, H. (1885). *Über das Gedächtnis: Untersuchungen zur experimentellen Psychologie*. Duncker & Humblot.
+5. Karpathy, A. (2023). *LLM-Wiki: A personal knowledge base powered by LLMs*. GitHub Gist. https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
 
 ---
 
 <div align="center">
 
-Works with [OpenClaw](https://github.com/openclaw/openclaw) · Embeddings by [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) · Vector store by [LanceDB](https://lancedb.github.io/lancedb/)
+*Developed by [Giovanni Frontera, Ph.D.](https://github.com/giovannifrontera) · Part of the AI-Wiki Ecosystem*
 
 </div>
