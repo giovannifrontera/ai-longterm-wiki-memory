@@ -4,14 +4,19 @@ setup_openclaw.py — injects wiki-context-plugin into the OpenClaw config file.
 
 Usage:
     py scripts/setup_openclaw.py --workspace /path/to/workspace
-    py scripts/setup_openclaw.py --workspace /path/to/workspace --config /path/to/openclaw/config.json
+    py scripts/setup_openclaw.py --workspace /path/to/workspace --config /path/to/openclaw.json
+    py scripts/setup_openclaw.py --workspace /path/to/workspace --force   # re-inject after wizard reset
 
 The script:
 - Auto-detects the OpenClaw config file in common locations (or uses --config)
 - Injects the wiki-context-plugin entry into the plugins array
-- Skips silently if the plugin is already present
+- Skips silently if the plugin is already present (use --force to override)
 - Writes atomically (temp file + rename)
 - Injects usage instructions into <workspace>/AGENTS.md (idempotent via sentinel marker)
+
+NOTE: The OpenClaw wizard (openclaw doctor) may strip custom plugin entries when it
+regenerates the config. If the plugin stops working after running the wizard, re-run
+this script with --force to restore the configuration.
 """
 
 import argparse
@@ -108,10 +113,16 @@ def inject_usage_instructions(workspace: Path, dry_run: bool = False) -> None:
     print(f"Usage instructions injected into {agents_md}")
 
 
+# FIX: OpenClaw uses 'openclaw.json', not 'config.json'.
+# Both names are listed for forward/backward compatibility.
 CANDIDATE_PATHS = [
-    Path.home() / ".openclaw" / "config.json",
+    Path.home() / ".openclaw" / "openclaw.json",           # primary — all platforms
+    Path.home() / ".openclaw" / "config.json",             # legacy fallback
+    Path.home() / ".config" / "openclaw" / "openclaw.json",
     Path.home() / ".config" / "openclaw" / "config.json",
+    Path(os.environ.get("APPDATA", "")) / "openclaw" / "openclaw.json",
     Path(os.environ.get("APPDATA", "")) / "openclaw" / "config.json",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "openclaw" / "openclaw.json",
     Path(os.environ.get("LOCALAPPDATA", "")) / "openclaw" / "config.json",
     Path.cwd() / "openclaw.config.json",
 ]
@@ -160,6 +171,11 @@ def main() -> None:
         help="Timeout for wiki_context.py in milliseconds (default: 15000)",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-inject even if the plugin entry is already present (use after OpenClaw wizard resets the config)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the resulting config without writing it",
@@ -202,7 +218,7 @@ def main() -> None:
             print("Tried:", file=sys.stderr)
             for p in CANDIDATE_PATHS:
                 print(f"  {p}", file=sys.stderr)
-            print("\nPass --config /path/to/openclaw/config.json explicitly.", file=sys.stderr)
+            print("\nPass --config /path/to/openclaw.json explicitly.", file=sys.stderr)
             sys.exit(1)
 
     # Load existing config
@@ -213,13 +229,17 @@ def main() -> None:
         print(f"ERROR: could not parse {config_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Check if already installed — OpenClaw uses plugins.entries.<id> dict format
+    # Check if already installed
     entries = config.setdefault("plugins", {}).setdefault("entries", {})
-    if "wiki-context-plugin" in entries:
+    if "wiki-context-plugin" in entries and not args.force:
         print(f"Plugin already present in {config_path} — nothing to do.")
+        print("If the plugin stopped working after an OpenClaw wizard run, use --force to re-inject.")
         sys.exit(0)
 
-    # Build plugin entry (no top-level "id" or "path" — OpenClaw resolves by key)
+    if "wiki-context-plugin" in entries and args.force:
+        print(f"--force: overwriting existing wiki-context-plugin entry in {config_path}")
+
+    # Build plugin entry
     plugin_entry = {
         "config": {
             "workspace": str(workspace).replace("\\", "/"),
@@ -259,8 +279,12 @@ def main() -> None:
     print(f"  k          : {args.k}")
     print()
     print("Restart OpenClaw to activate the plugin.")
+    print()
+    print("NOTE: If you run 'openclaw doctor' (wizard) in the future, it may reset")
+    print("the config and strip this plugin entry. Re-run this script with --force")
+    print("to restore it.")
 
-    inject_usage_instructions(workspace, dry_run=args.dry_run)
+    inject_usage_instructions(workspace, dry_run=False)
 
 
 if __name__ == "__main__":
